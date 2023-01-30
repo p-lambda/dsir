@@ -14,7 +14,7 @@ We provide datasets on HuggingFace that are already pre-filtered from The Pile. 
 from datasets import load_dataset
 dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 ```
-- Comparisons for training BERT-style models:
+- Comparisons for training BERT-base models from scratch (50k steps, 128 max token length, 4096 batch size):
 
 | GLUE dev                                          |  MNLI |  QNLI |   QQP |   RTE | SST2 |  MRPC |  CoLA | STSB |   Avg |
 |---------------------------------------------------|------:|------:|------:|------:|------:|------:|------:|------:|------:|
