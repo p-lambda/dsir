@@ -15,11 +15,12 @@ from datasets import load_dataset
 dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 ```
 - Comparisons for training BERT-style models:
-| GLUE dev                 |  MNLI |  QNLI |   QQP |   RTE | SST-2 |  MRPC |  CoLA | STS-B |     Avg |
-|--------------------------|------:|------:|------:|------:|------:|------:|------:|------:|--------:|
-| Random selection         | 82.63 |  86.90 | 89.57 | 67.37 | 90.05 |  87.4 | 49.41 | 88.63 |  80.25 |
-| Heuristic classification | 82.69 | 85.95 | 89.77 | 68.59 | 88.94 | 86.03 | 48.17 | 88.62 |  79.85 |
-| Importance sampling (IS) | 83.07 | 89.11 |  89.8 | 75.09 | 90.48 |  87.70 |    54.00 | 89.17 | 82.30 |
+
+| GLUE dev                                          |  MNLI |  QNLI |   QQP |   RTE | SST2 |  MRPC |  CoLA | STSB |   Avg |
+|---------------------------------------------------|------:|------:|------:|------:|------:|------:|------:|------:|------:|
+| Random selection                                  | 82.63 |  86.9 | 89.57 | 67.37 | 90.05 | 87.40 | 49.41 | 88.63 | 80.25 |
+| Heuristic classification (GPT-3/Pile/PaLM method) | 82.69 | 85.95 | 89.77 | 68.59 | 88.94 | 86.03 | 48.17 | 88.62 | 79.85 |
+| DSIR                                              | 83.07 | 89.11 | 89.80 | 75.09 | 90.48 | 87.70 | 54.00 | 89.17 | 82.30 |
 
 
 
