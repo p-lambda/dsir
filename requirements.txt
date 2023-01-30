@@ -1,0 +1,7 @@
+datasets
+pandas
+tqdm
+tokenizers
+numpy
+joblib
+nltk

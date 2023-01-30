@@ -6,9 +6,9 @@ This repository contains pre-filtered datasets and code for selecting relevant l
 We provide datasets on HuggingFace that are already pre-filtered from The Pile. Stay tuned for more datasets!
 
 ### DSIR-filtered-pile-50M
-- Target distribution: Wikipedia, Books3, BookCorpus2, Gutenberg
+- Target distribution: Wikipedia, BookCorpus2
 - Raw dataset: The Pile
-- The dataset contains 51.2M examples, most of which are selected from Pile subsets that are not Wikipedia or books-related. 4% of the data is selected from Wikipedia and books. Every example concatenates 2 snippets, possibly from different sources, to ensure that the examples are long enough for longer context models (512 or 1024 tokens). Metadata about which sources the text comes from is included with every example.
+- The dataset contains 51.2M examples, most of which are selected from Pile subsets that are not Wikipedia or books-related (BookCorpus2, Books3, Gutenberg). 4% of the data is randomly selected from Wikipedia and books-related subsets. Every example concatenates 2 snippets, possibly from different sources, to ensure that the examples are long enough for longer context models (512 or 1024 tokens). Metadata about which sources the text comes from is included with every example.
 - Available on huggingface at https://huggingface.co/datasets/stanford-crfm/DSIR-filtered-pile-50M. Use with HuggingFace Datasets:
 ```
 from datasets import load_dataset
@@ -26,6 +26,11 @@ dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 
 ## Code
 
-
-
+To select your own subset of The Pile, all you need is a small set of target examples representing the kind of data you want to select.
+This target dataset should be in jsonl format -- it can also be a dataset from HuggingFace Datasets.
+0. Create a virtualenv using `requirements.txt`: `virtualenv -r requirements.txt .venv`
+1. Download The Pile to `PILE_PATH` and change the corresponding variables in `config.sh`.
+2. Run preprocessing on The Pile: `preprocessing/run_slurm.sh` (for Slurm) or `preprocessing/run.sh`. This only needs to be run once.
+3. Merge The Pile subsets into a big file: `preprocessing/merge_subsets` (We're working on removing/streamlining steps 2 and 3!)
+4. Run DSIR: An example is in `data_selection/run_cmds.sh`. For new target datasets, some information about which fields in the dataset to use should be placed in the `dsname_to_args` dictionary at the top of the `is_pipeline.py` file. Many of the steps in DSIR are cached and will only run the first time. For example, resampling a different number of examples with the same target dataset uses cached importance weights.
 
