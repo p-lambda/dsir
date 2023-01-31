@@ -1,6 +1,4 @@
 #!/bin/bash
-mkdir -p logs
-
 num_buckets=10000
 ngrams=2
 
@@ -10,4 +8,5 @@ ngrams=2
 
 TARGET='wiki_and_books'
 run_name=${TARGET}_all_ngrammatching_ngrams${ngrams}_buckets${num_buckets}_qf
-bash run_is.sh ${TARGET} ${run_name} " --qualityfilter --ngrams ${ngrams} --num_buckets ${num_buckets} --mode ngramkl_logratios --pack_every_2_examples" 98400000
+bash run_dsir.sh ${TARGET} ${run_name} " --qualityfilter --ngrams ${ngrams} --num_buckets ${num_buckets} --pack_every_2_examples" 98400000
+

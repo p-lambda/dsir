@@ -18,10 +18,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
-PILE_PATH = os.environ['PILE_PATH']
-ROOT_DIR = os.environ['ROOT_DIR']
-CACHE = os.environ['CACHE']
-
 # Place information about datasets in the dict below.
 # The columns field is a list of columns to use for DSIR.
 dsname_to_args = {
@@ -51,16 +47,16 @@ dsname_to_args = {
     'helpfulness': {'dataset_name': 'yxchar/amazon-tlm',
         'task_name': None,
         'columns': ['text']},
-    'pile': {'dataset_name': 'json',
-             'task_name': [f'{PILE_PATH}/chunked/VAL_128/train.jsonl'],
+    'pile_val': {'dataset_name': 'json',
+        'task_name': None, # to be set later
+        'quality_scores': None, # to be set later
              'columns': ['contents'],
-             'quality_scores': f'{PILE_PATH}/chunked/VAL_128/train.jsonl_qualityscores.npz',
              },
-    'pile_subset': {'dataset_name': 'json',
-             'task_name': f'{PILE_PATH}/chunked/combined_all.jsonl',
+    'pile': {'dataset_name': 'json',
+        'task_name': None, # to be set later
+        'quality_scores': None, # to be set later
              'columns': ['contents'],
              'total_lines': 1745766302,
-             'quality_scores': f'{PILE_PATH}/chunked/combined_all.jsonl_qualityscores.npz',
              },
  }
 
@@ -205,7 +201,7 @@ def compute_importance_weights(
 
 
 def compute_domain_idxs(filter_domains):
-    ds_path = f'{PILE_PATH}/chunked/combined_all.jsonl'
+    ds_path = dsname_to_args['pile']['task_name']
     domain_to_idxs = defaultdict(list)
     todo_domains = []
     for domain in filter_domains:
@@ -233,18 +229,20 @@ def compute_domain_idxs(filter_domains):
 
 
 def resample(ds_dir, cache_ds_dir, num_to_retrieve):
-    mode = args.mode
-    subset = 'all'
-    retrieved_dir = ds_dir / f'{mode}_subset{subset}_retrieved'
-    retrieved_path_cache = cache_ds_dir / f'{mode}_retrieved_{subset}_{num_to_retrieve}.jsonl'
+    if args.pack_every_2_examples:
+        suffix = '_pack'
+    else:
+        suffix = '_nopack'
+    retrieved_dir = ds_dir / f'retrieved'
+    retrieved_path_cache = cache_ds_dir / f'retrieved_{num_to_retrieve}{suffix}.jsonl'
 
     retrieved_dir.mkdir(parents=True, exist_ok=True)
-    retrieved_path = retrieved_dir / f'retrieved_{subset}_{num_to_retrieve}.jsonl'
+    retrieved_path = retrieved_dir / f'retrieved_{num_to_retrieve}{suffix}.jsonl'
 
-    total_lines = dsname_to_args['pile_subset']['total_lines']
+    total_lines = dsname_to_args['pile']['total_lines']
 
     if args.qualityfilter:
-        quality_scores = np.load(dsname_to_args['pile_subset']['quality_scores'])
+        quality_scores = np.load(dsname_to_args['pile']['quality_scores'])
         global_mask = get_quality_mask(quality_scores)
 
     if args.ds_name == 'wiki_and_books':
@@ -302,7 +300,7 @@ def resample(ds_dir, cache_ds_dir, num_to_retrieve):
     del nonzero_idxs
     del chosen_idxs
 
-    ds_path = dsname_to_args['pile_subset']['task_name']
+    ds_path = dsname_to_args['pile']['task_name']
     prev_line = None
     with open(retrieved_path_cache, 'w') as fout:
         with open(ds_path, 'r') as f:
@@ -327,6 +325,7 @@ def resample(ds_dir, cache_ds_dir, num_to_retrieve):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data selection with DSIR')
+    parser.add_argument('--pile_path', type=str, help='path to pile')
     parser.add_argument('--ds_name', type=str, help='dataset name')
     parser.add_argument('--output_dir', type=str, help='output path')
     parser.add_argument('--num_to_retrieve', type=int, default=25600000, help='Number of examples to retrieve')
@@ -335,16 +334,26 @@ if __name__ == "__main__":
     parser.add_argument('--num_proc', type=int, help='number of threads')
     parser.add_argument('--overwrite', action='store_true', help='Overwrite importance weights')
     parser.add_argument('--overwrite_preprocess', action='store_true', help='overwrite data preprocessing')
-    parser.add_argument('--ngrams', type=int, default=2, help='number of ngrams')
+    parser.add_argument('--ngrams', type=int, default=2, help='N in N-grams. 2 means both unigram and bigram.')
     parser.add_argument('--num_buckets', type=int, default=10000, help='number of ngram hash buckets')
     parser.add_argument('--pipeline_step', type=str, help='which step of pipeline to run. (imporance_weights, resample)')
     parser.add_argument('--chunk_idx', type=str, default='01', help='which chunk of prediction')
-    parser.add_argument('--num_chunks', type=int, default=29, help='which chunk of prediction')
+    parser.add_argument('--num_chunks', type=int, default=29, help='Number of chunks')
     parser.add_argument('--qualityfilter', action='store_true', help='whether to implement quality filtering')
     parser.add_argument('--pack_every_2_examples', action='store_true', help='whether to pack two examples together to get longer examples')
-    parser.add_argument('--mode', type=str, default='ngramkl', help='which chunk of prediction')
     args = parser.parse_args()
     random.seed(121)
+
+    chunked_dir = 'chunked'
+    dsname_to_args['pile_val'].update(
+            {'task_name': [f'{args.pile_path}/{chunked_dir}/VAL_128/train.jsonl'],
+             'quality_scores': f'{args.pile_path}/{chunked_dir}/VAL_128/train.jsonl_qualityscores.npz'}
+             )
+
+    dsname_to_args['pile'].update(
+        {'task_name': f'{args.pile_path}/{chunked_dir}/combined_all.jsonl',
+        'quality_scores': f'{args.pile_path}/{chunked_dir}/combined_all.jsonl_qualityscores.npz'}
+            )
 
     cache_ds_dir = Path(args.cache_dir) / 'ngram_cache' / args.ds_name
     cache_ds_dir.mkdir(exist_ok=True, parents=True)
@@ -354,7 +363,7 @@ if __name__ == "__main__":
     if args.ds_name == 'wiki_and_books':
         filter_domains = {'Wikipedia (en)', 'BookCorpus2'}
         ds_ngram_dist = compute_ngrams_pile(
-                path=dsname_to_args['pile']['task_name'][0],
+                path=dsname_to_args['pile_val']['task_name'][0],
                 ngrams=args.ngrams,
                 num_buckets=args.num_buckets,
                 filter_domains=filter_domains,
@@ -365,7 +374,7 @@ if __name__ == "__main__":
         ds_ngram_dist = ds_ngram_dist / ds_ngram_dist.sum()
 
     pile_dist = compute_ngrams_pile(
-            path=dsname_to_args['pile']['task_name'][0],
+            path=dsname_to_args['pile_val']['task_name'][0],
             ngrams=args.ngrams,
             num_buckets=args.num_buckets,
             )
@@ -373,7 +382,7 @@ if __name__ == "__main__":
 
     if args.pipeline_step == 'importance_weights':
         _ = compute_importance_weights(
-                path=f"{PILE_PATH}/chunked/{args.chunk_idx}_128/{args.chunk_idx}_128.json",
+                path=f"{args.pile_path}/{chunked_dir}/{args.chunk_idx}_128/{args.chunk_idx}_128.json",
                 ds_dir=ds_dir,
                 chunk_idx=args.chunk_idx,
                 target_dist=ds_ngram_dist,

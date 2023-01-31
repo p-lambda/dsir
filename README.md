@@ -27,10 +27,10 @@ dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 ## Code
 
 To select your own subset of The Pile, all you need is a small set of target examples representing the kind of data you want to select.
-This target dataset should be in jsonl format -- it can also be a dataset from HuggingFace Datasets.
-0. Create a virtualenv using `requirements.txt`: `virtualenv -r requirements.txt .venv`
-1. Download The Pile to `PILE_PATH` and change the corresponding variables in `config.sh`.
-2. Run preprocessing on The Pile: `preprocessing/run_slurm.sh` (for Slurm) or `preprocessing/run.sh`. This only needs to be run once.
-3. Merge The Pile subsets into a big file: `preprocessing/merge_subsets` (We're working on removing/streamlining steps 2 and 3!)
-4. Run DSIR: An example is in `data_selection/run_cmds.sh`. For new target datasets, some information about which fields in the dataset to use should be placed in the `dsname_to_args` dictionary at the top of the `is_pipeline.py` file. Many of the steps in DSIR are cached and will only run the first time. For example, resampling a different number of examples with the same target dataset uses cached importance weights.
+This target dataset should be in jsonl format -- it can also be a dataset from HuggingFace Datasets. Note that our current workflow requires about 3TB of storage space --- we're working on reducing this!
+1. Create a virtualenv using `requirements.txt`: `virtualenv .venv; source .venv/bin/activate; pip install -r requirements.txt`
+2. Download The Pile to `PILE_PATH` and change the corresponding variables in `config.sh`.
+3. Run preprocessing on The Pile: Go to `preprocessing/` and run `run_slurm.sh`. You can also use `run.sh` directly with the arguments from the Slurm command. This only needs to be run once. 
+4. Precompute quality filter stats: Go to `preprocessing/quality_scores/` and run `run_slurm_quality_stats.sh`. This only needs to be run once. (We're working on removing/streamlining steps 3 and 4. Stay tuned!) 
+5. Run DSIR: Go to `data_selection/`. An example is in `run_cmds.sh`. For new target datasets, some information about which fields in the dataset to use should be placed in the `dsname_to_args` dictionary at the top of the `is_pipeline.py` file. Many of the steps in DSIR can be cached and will only run the first time. For example, resampling a different number of examples with the same target dataset uses cached importance weights.
 
