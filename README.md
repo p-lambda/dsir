@@ -49,3 +49,14 @@ This target dataset should be in jsonl format -- it can also be a dataset from H
 4. Precompute quality filter stats: Go to `preprocessing/quality_scores/` and run `run_slurm_quality_stats.sh`. This only needs to be run once. (We're working on removing/streamlining steps 3 and 4. Stay tuned!) 
 5. Run DSIR: Go to `data_selection/`. An example is in `run_cmds.sh`. For new target datasets, some information about which fields in the dataset to use should be placed in the `dsname_to_args` dictionary at the top of the `is_pipeline.py` file. Many of the steps in DSIR can be cached and will only run the first time. For example, resampling a different number of examples with the same target dataset uses cached importance weights.
 
+## Citation Information
+Paper: <https://arxiv.org/abs/2302.03169>
+```
+@article{xie2023data,
+  author = {Sang Michael Xie and Shibani Santurkar and Tengyu Ma and Percy Liang},
+  journal = {arXiv preprint arXiv:2302.03169},
+  title = {Data Selection for Language Models via Importance Resampling},
+  year = {2023},
+}
+```
+
