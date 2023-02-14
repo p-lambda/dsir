@@ -25,19 +25,6 @@ dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 | DSIR                                              | 83.07 | 89.11 | 89.80 | 75.09 | 90.48 | 87.70 | 54.00 | 89.17 | 82.30 |
 
 
-### DSIR-filtered-pile-100M-short
-- Target distribution: Wikipedia, BookCorpus2
-- Raw dataset: The Pile
-- Size: 80GB, 102.4M examples
-- Suitable for token length 128 or 256, but can be used for shorter token lengths
-- The dataset contains 102.4M examples, most of which are selected from Pile subsets that are not Wikipedia or books-related (BookCorpus2, Books3, Gutenberg). 10% of the data is randomly selected from Wikipedia and books-related subsets. Metadata about which source the text comes from is included with every example.
-- Available on HuggingFace at https://huggingface.co/datasets/stanford-crfm/DSIR-filtered-pile-100M-short. Use with HuggingFace Datasets:
-```
-from datasets import load_dataset
-dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-100M-short")
-```
-- Comparisons (TBD)
-
 
 ## Code
 
