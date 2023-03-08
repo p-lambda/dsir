@@ -32,7 +32,7 @@ To select your own subset of The Pile, all you need is a small set of target exa
 This target dataset should be in jsonl format -- it can also be a dataset from HuggingFace Datasets. Note that our current workflow requires about 3TB of storage space --- we're working on reducing this!
 1. Create a virtualenv using `requirements.txt`: `virtualenv .venv; source .venv/bin/activate; pip install -r requirements.txt`
 2. Download The Pile to `PILE_PATH` and change the corresponding variables in `config.sh`.
-3. Run preprocessing on The Pile: Go to `preprocessing/` and run `run_slurm.sh`. You can also use `run.sh` directly with the arguments from the Slurm command. This only needs to be run once. 
+3. Run preprocessing on The Pile: Go to `preprocessing/` and run `run_slurm.sh`. After these jobs finish, run `combine.sh`. You can also use `run.sh` directly with the arguments from the Slurm command. This only needs to be run once. 
 4. Precompute quality filter stats: Go to `preprocessing/quality_scores/` and run `run_slurm_quality_stats.sh`. This only needs to be run once. (We're working on removing/streamlining steps 3 and 4. Stay tuned!) 
 5. Run DSIR: Go to `data_selection/`. An example is in `run_cmds.sh`. For new target datasets, some information about which fields in the dataset to use should be placed in the `dsname_to_args` dictionary at the top of the `is_pipeline.py` file. Many of the steps in DSIR can be cached and will only run the first time. For example, resampling a different number of examples with the same target dataset uses cached importance weights.
 
