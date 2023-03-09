@@ -17,6 +17,8 @@ args=$3
 output_dir=${DSIR_OUTPUT_DIR}
 mkdir -p ${output_dir}
 
+# important! set this environment variable to make sure the hash
+# function is consistent across different machines.
 export PYTHONHASHSEED=42
 
 python dsir_pipeline.py \
