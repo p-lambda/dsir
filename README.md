@@ -29,7 +29,7 @@ dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 ## Code
 
 To select your own subset of The Pile, all you need is a small set of target examples representing the kind of data you want to select.
-This target dataset should be in jsonl format -- it can also be a dataset from HuggingFace Datasets. Note that our current workflow requires about 3TB of storage space --- we're working on reducing this!
+This target dataset should be in jsonl format -- it can also be a dataset from HuggingFace Datasets. Note that our current workflow requires about 2TB of storage space --- we're working on reducing this!
 1. Create a virtualenv using `requirements.txt`: `virtualenv .venv; source .venv/bin/activate; pip install -r requirements.txt`
 2. Download The Pile to `PILE_PATH` and change the corresponding variables in `config.sh`.
 3. Run preprocessing on The Pile: Go to `preprocessing/` and run `run_slurm.sh`. You can also use `run.sh` directly with the arguments from the Slurm command. This only needs to be run once. 
