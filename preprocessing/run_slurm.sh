@@ -10,8 +10,7 @@ mkdir -p logs
 for SUBSET in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29; do
      jid=$(sbatch \
              --parsable \
-             --partition john \
-             --exclude john[12-17],john5,john3 \
+             ${cluster_info} \
              --mem 48G \
              -c 16 \
              --output logs/chunk_${SUBSET} \
@@ -19,4 +18,13 @@ for SUBSET in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 
      echo -n "${jid} "
 done
 
+# validation data
+ jid=$(sbatch \
+         --parsable \
+         ${cluster_info} \
+         --mem 48G \
+         -c 16 \
+         --output logs/chunk_val \
+         run.sh "--input_filename val.jsonl.zst --chunk_length 128 --input_dir ${PILE_PATH} --output_dir ${PILE_PATH}/chunked/VAL_128 --cache_dir ${CACHE}}" ${VIRTUAL_ENV} ${CACHE} ${PILE_PATH})
+ echo -n "${jid} "
 

@@ -19,4 +19,13 @@ for SUBSET in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 
 done
 
 
+# validation data
+jid=$(sbatch \
+        --parsable \
+        ${cluster_info} \
+        --mem 24G \
+        -c 16 \
+        --output logs/qualitystats/chunk_val \
+        run_quality_stats.sh ${PILE_PATH}/chunked/VAL_128/val_128.json ${pile_path})
+echo -n "${jid} "
 

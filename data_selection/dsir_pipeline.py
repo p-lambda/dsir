@@ -300,25 +300,27 @@ def resample(ds_dir, cache_ds_dir, num_to_retrieve):
     del nonzero_idxs
     del chosen_idxs
 
-    ds_path = dsname_to_args['pile']['task_name']
-    prev_line = None
+
+    combined_streaming_ds = load_dataset(
+            'json',
+            data_files=dsname_to_args['pile']['task_name'],
+            streaming=True)['train']
+
+    prev_ex = None
     with open(retrieved_path_cache, 'w') as fout:
-        with open(ds_path, 'r') as f:
-            for i, line in tqdm(enumerate(f), total=total_lines, miniters=1000000):
-                if global_mask[i]:
-                    if args.pack_every_2_examples and prev_line is not None:
-                        prev_ex = json.loads(prev_line)
-                        curr_ex = json.loads(line)
-                        prev_ex['contents'] += curr_ex['contents']
-                        prev_ex['metadata']['pile_set_name'] = [
-                            prev_ex['metadata']['pile_set_name'],
-                            curr_ex['metadata']['pile_set_name']]
-                        fout.write(json.dumps(prev_ex).strip() + '\n')
-                        prev_line = None
-                    elif args.pack_every_2_examples and prev_line is None:
-                        prev_line = line
-                    else:
-                        fout.write(line.strip() + '\n')
+        for i, curr_ex in tqdm(enumerate(combined_streaming_ds), miniters=1000000, total=total_lines):
+            if global_mask[i]:
+                if args.pack_every_2_examples and prev_ex is not None:
+                    prev_ex['contents'] += curr_ex['contents']
+                    prev_ex['metadata']['pile_set_name'] = [
+                        prev_ex['metadata']['pile_set_name'],
+                        curr_ex['metadata']['pile_set_name']]
+                    fout.write(json.dumps(prev_ex).strip() + '\n')
+                    prev_ex = None
+                elif args.pack_every_2_examples and prev_ex is None:
+                    prev_ex = curr_ex
+                else:
+                    four.write(json.dumps(curr_ex).strip() + '\n')
 
     shutil.move(retrieved_path_cache, retrieved_path)
 
@@ -346,13 +348,13 @@ if __name__ == "__main__":
 
     chunked_dir = 'chunked'
     dsname_to_args['pile_val'].update(
-            {'task_name': [f'{args.pile_path}/{chunked_dir}/VAL_128/train.jsonl'],
-             'quality_scores': f'{args.pile_path}/{chunked_dir}/VAL_128/train.jsonl_qualityscores.npz'}
+            {'task_name': [f'{args.pile_path}/{chunked_dir}/VAL_128/val_128.json'],
+             'quality_scores': f'{args.pile_path}/{chunked_dir}/VAL_128/val_128.json_qualityscores.npz'}
              )
 
     dsname_to_args['pile'].update(
-        {'task_name': f'{args.pile_path}/{chunked_dir}/combined_all.jsonl',
-        'quality_scores': f'{args.pile_path}/{chunked_dir}/combined_all.jsonl_qualityscores.npz'}
+        {'task_name': [f'{args.pile_path}/{chunked_dir}/{subset}_128/{subset}_128.json' for subset in subsets],
+        'quality_scores': f'{args.pile_path}/{chunked_dir}/combined_all.json_qualityscores.npz'}
             )
 
     cache_ds_dir = Path(args.cache_dir) / 'ngram_cache' / args.ds_name
