@@ -362,7 +362,7 @@ if __name__ == "__main__":
     #    XXX: if using fewer subsets of the Pile, please change the subsets list and the total_lines variable.
     #    We provde an example below (note that using linecount can take a long time for large numbers of subsets - we suggest running this once and hardcoding the number):
     # subsets = ['00']
-    # total_lines = sum([linecount(f'{args.pile_path}/{chunked_dir}/{subset}_128/{subset}_128.json) for subset in subsets])
+    # total_lines = sum([linecount(f'{args.pile_path}/{chunked_dir}/{subset}_128/{subset}_128.json') for subset in subsets])
     # dsname_to_args['pile']['total_lines'] = total_lines
 
     dsname_to_args['pile'].update(
