@@ -34,7 +34,7 @@ This target dataset should be in jsonl format -- it can also be a dataset from H
 2. Download The Pile to `PILE_PATH` and change the corresponding variables in `config.sh`.
 3. Run preprocessing on The Pile: Go to `preprocessing/` and run `run_slurm.sh`. You can also use `run.sh` directly with the arguments from the Slurm command. This only needs to be run once. 
 4. Precompute quality filter stats: Go to `preprocessing/quality_scores/` and run `run_slurm_quality_stats.sh`. After this, run `merge_quality_scores.py`. This only needs to be run once. (We're working on streamlining steps 3 and 4. Stay tuned!) 
-5. Run DSIR: Go to `data_selection/`. An example is in `run_cmds.sh`. For new target datasets, some information about which fields in the dataset to use should be placed in the `dsname_to_args` dictionary at the top of the `dsir_pipeline.py` file. Many of the steps in DSIR can be cached and will only run the first time. For example, resampling a different number of examples with the same target dataset uses cached importance weights.
+5. Run DSIR: Go to `data_selection/`. An example is in `run_cmds.sh`. For new target datasets, some information about which fields in the dataset to use should be placed in the `dsname_to_args` dictionary at the top of the `dsir_pipeline.py` file. If you wish to retrieve from custom subsets of the Pile, you will need to tweak one part of the code, in the main part of the script (an example is provided of how to do so). Many of the steps in DSIR can be cached and will only run the first time. For example, resampling a different number of examples with the same target dataset uses cached importance weights.
 
 ## Citation Information
 Paper: <https://arxiv.org/abs/2302.03169>

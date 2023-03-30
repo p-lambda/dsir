@@ -7,6 +7,7 @@ import shutil
 import string
 from collections import defaultdict
 import os
+import subprocess
 
 from tqdm import tqdm
 from nltk import word_tokenize
@@ -325,6 +326,12 @@ def resample(ds_dir, cache_ds_dir, num_to_retrieve):
     shutil.move(retrieved_path_cache, retrieved_path)
 
 
+def linecount(filename):
+    out = subprocess.Popen(['wc', '-l', filename],
+                           stdout=subprocess.PIPE).communicate()[0]
+    return int(out.strip().partition(b' ')[0])
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data selection with DSIR')
     parser.add_argument('--pile_path', type=str, help='path to pile')
@@ -351,6 +358,12 @@ if __name__ == "__main__":
             {'task_name': [f'{args.pile_path}/{chunked_dir}/VAL_128/val_128.json'],
              'quality_scores': f'{args.pile_path}/{chunked_dir}/VAL_128/val_128.json_qualityscores.npz'}
              )
+
+    #    XXX: if using fewer subsets of the Pile, please change the subsets list and the total_lines variable.
+    #    We provde an example below (note that using linecount can take a long time for large numbers of subsets - we suggest running this once and hardcoding the number):
+    # subsets = ['00']
+    # total_lines = sum([linecount(f'{args.pile_path}/{chunked_dir}/{subset}_128/{subset}_128.json) for subset in subsets])
+    # dsname_to_args['pile']['total_lines'] = total_lines
 
     dsname_to_args['pile'].update(
         {'task_name': [f'{args.pile_path}/{chunked_dir}/{subset}_128/{subset}_128.json' for subset in subsets],
@@ -393,4 +406,4 @@ if __name__ == "__main__":
                 num_buckets=args.num_buckets,
                 )
     elif args.pipeline_step == 'resample':
-        resample(ds_dir, cache_ds_dir, args.num_to_retrieve, ds_ngram_dist)
+        resample(ds_dir, cache_ds_dir, args.num_to_retrieve)
