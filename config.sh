@@ -1,11 +1,11 @@
 #!/bin/bash
 
-CACHE='/scr/cache'
+CACHE='/path/to/cachedir'
 ROOT_DIR='/path/to/dsir'
-VIRTUAL_ENV='/path/to/venv'
+VIRTUAL_ENV='/path/to/.env'
 PILE_PATH='/path/to/pile'
 DSIR_OUTPUT_DIR='/path/to/outputdir'
+PRETRAIN_OUTPUT_DIR='/path/to/model_outputdir'
 # Slurm
-CLUSTER='partition_name'
-cluster_info='--partition ${CLUSTER}'
+cluster_info='--partition <PARTITION_NAME>'
 

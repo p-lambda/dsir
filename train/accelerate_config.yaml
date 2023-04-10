@@ -1,0 +1,9 @@
+compute_environment: LOCAL_MACHINE
+distributed_type: MULTI_GPU
+fp16: true
+machine_rank: 0
+main_process_ip: null
+main_process_port: 1234
+main_training_function: main
+num_machines: 1
+num_processes: 4
