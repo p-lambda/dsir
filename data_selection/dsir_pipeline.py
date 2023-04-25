@@ -203,6 +203,7 @@ def compute_importance_weights(
 
 def compute_domain_idxs(filter_domains):
     ds_path = dsname_to_args['pile']['task_name']
+
     domain_to_idxs = defaultdict(list)
     todo_domains = []
     for domain in filter_domains:
@@ -210,14 +211,17 @@ def compute_domain_idxs(filter_domains):
         if not domain_idxs_path.exists():
             todo_domains.append(domain)
 
+    combined_streaming_ds = load_dataset(
+            'json',
+            data_files=ds_path,
+            streaming=True)['train']
+
     todo_domains = set(todo_domains)
     if len(todo_domains) > 0:
-        with open(ds_path, 'r') as f:
-            for k, line in tqdm(enumerate(f), miniters=1000000, maxinterval=1000000):
-                ex = json.loads(line)
-                domain = ex["metadata"]["pile_set_name"]
-                if domain in todo_domains:
-                    domain_to_idxs[domain].append(k)
+        for i, ex in tqdm(enumerate(combined_streaming_ds), miniters=1000000, total=total_lines):
+            domain = ex["metadata"]["pile_set_name"]
+            if domain in todo_domains:
+                domain_to_idxs[domain].append(k)
         for domain, idxs in domain_to_idxs.items():
             np.save(Path(ds_path).parent / f"{domain.replace(' ', '_')}_idxs.npy", np.asarray(idxs))
 
