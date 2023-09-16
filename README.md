@@ -28,7 +28,7 @@ dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 - Available on HuggingFace at https://huggingface.co/datasets/stanford-crfm/heuristic_classification-filtered-pile-50M. Use with HuggingFace Datasets:
 ```
 from datasets import load_dataset
-dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
+dataset = load_dataset("stanford-crfm/heuristic_classification-filtered-pile-50M")
 ```
 - Comparisons for training BERT-base models from scratch (50k steps, 128 max token length, 4096 batch size):
 
