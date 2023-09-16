@@ -25,7 +25,7 @@ dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 
 ## Pretrained models
 
-In the table below, `{dataset}` can be replaced with one of `{ag, amazon, citation_intent, hyp, imdb, sciie, chemprot, rct-20k}`.
+In the table below, `{dataset}` can be replaced with one of `{ag, amazon, citation_intent, hyp, imdb, sciie, chemprot, rct-20k}` for the continued pretraining models.
 
 | HuggingFace ID | Link | Dataset size | Max token length | Training steps | Architecture | Initialization | Description |
 |---|---|---|---|---|---|---|---|
