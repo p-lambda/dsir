@@ -4,3 +4,4 @@ tqdm
 numpy
 joblib
 nltk
+fasttext

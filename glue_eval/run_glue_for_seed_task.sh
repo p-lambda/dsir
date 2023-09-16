@@ -10,7 +10,7 @@ BATCH_SIZE=$6
 CACHE=$7
 BASENAME=${8:-"bert-base-uncased"}
 SAVE_PATH=${9:-${PRETRAINED_PATH}}
-MAX_LEN=${10:-512}
+MAX_LEN=${10:-128}
 
 mkdir -p $CACHE
 export HF_HOME=$CACHE
@@ -35,7 +35,7 @@ ACCUM=1
 if [[ $(ls ${RUN_DIR}/eval_results*) ]]; then
   echo "${RUN} finished"
 else
-    python run_glue.py \
+    python glue_eval/run_glue.py \
         --fp16 \
         --model_name_or_path $PRETRAINED_PATH \
         --tokenizer_name ${BASENAME} \

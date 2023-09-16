@@ -1,11 +1,5 @@
 #!/bin/bash
-set -x
-parent_path=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
-cd "${parent_path}"
-# load global parameters: cluster_info
-set -a
-source ../config.sh
-set +a
+source config.sh
 
 gpus=1
 mem=8G
@@ -32,7 +26,7 @@ for SEED in 1 2 3 4 5; do
             -c $cpus \
             --output ${SAVE_PATH}/logs/${TASK_NAME}_${EPOCHS}_${LR}_${BATCH_SIZE}_${SEED} \
             ${cluster_info} \
-            run_glue_for_seed_task.sh ${PRETRAINED_PATH} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE} ${BASENAME})
+            glue_eval/run_glue_for_seed_task.sh ${PRETRAINED_PATH} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE} ${BASENAME})
     echo -n "${mnli_jid} "
 
     # Following RoBERTa paper, initialize RTE/MRPC/STS from MNLI
@@ -58,7 +52,7 @@ for SEED in 1 2 3 4 5; do
                 -c $cpus \
                 --output ${SAVE_PATH}/logs/${TASK_NAME}_${EPOCHS}_${LR}_${BATCH_SIZE}_${SEED} \
                 ${cluster_info} \
-                run_glue_for_seed_task.sh ${SAVE_PATH}/finetune-runs/MNLI_EPOCHS10_BS32_LR1e-5_seed${SEED} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE}  ${BASENAME} ${SAVE_PATH} )
+                glue_eval/run_glue_for_seed_task.sh ${SAVE_PATH}/finetune-runs/MNLI_EPOCHS10_BS32_LR1e-5_seed${SEED} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE}  ${BASENAME} ${SAVE_PATH} )
         echo -n "${jid} "
     done
 done
@@ -75,7 +69,7 @@ jid=$(sbatch \
         -c $cpus \
         --output ${SAVE_PATH}/logs/${TASK_NAME}_${EPOCHS}_${LR}_${BATCH_SIZE}_${SEED} \
         ${cluster_info} \
-        run_glue_for_seed_task.sh ${PRETRAINED_PATH} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE} ${BASENAME})
+        glue_eval/run_glue_for_seed_task.sh ${PRETRAINED_PATH} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE} ${BASENAME})
 echo -n "${jid} "
     done
 done
@@ -103,7 +97,7 @@ for SEED in 1 2 3 4 5; do
         -c $cpus \
         --output ${SAVE_PATH}/logs/${TASK_NAME}_${EPOCHS}_${LR}_${BATCH_SIZE}_${SEED} \
         ${cluster_info} \
-        run_glue_for_seed_task.sh ${PRETRAINED_PATH} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE} ${BASENAME})
+        glue_eval/run_glue_for_seed_task.sh ${PRETRAINED_PATH} ${TASK_NAME} ${SEED} ${EPOCHS} ${LR} ${BATCH_SIZE} ${CACHE} ${BASENAME})
     echo -n "${jid} "
     done
 done

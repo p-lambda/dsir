@@ -1,11 +1,7 @@
 #!/bin/bash
 set -x
-parent_path=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
-cd "${parent_path}"
-# load global parameters: cluster_info
-set -a
-source ../config.sh
-set +a
+
+source config.sh
 
 TASK=$1
 SUFFIX=$2
@@ -16,7 +12,9 @@ DO_PRETRAIN=${6:-"true"}
 OTHER_ARGS=${7:-""}
 LR=${8:-"5e-4"}
 
-mkdir -p logs
+
+LOGDIR=logs/train
+mkdir -p ${LOGDIR}
 
 dependency=""
 if [[ "${DO_PREPROCESS}" = "true" ]]; then
@@ -25,8 +23,8 @@ if [[ "${DO_PREPROCESS}" = "true" ]]; then
         --mem=128g \
         ${cluster_info} \
         -c 8 \
-        --output logs/${TASK}_preprocess_${SUFFIX}.log \
-        preprocess_general.sh ${TASK} ${PRETRAIN_DATA_PATH} ${CACHE} "${OTHER_ARGS}")
+        --output ${LOGDIR}/${TASK}_preprocess_${SUFFIX}.log \
+        train/preprocess_general.sh ${TASK} ${PRETRAIN_DATA_PATH} ${CACHE} "${OTHER_ARGS}")
     echo -n "${jid} "
     dependency="--dependency afterok:${jid}"
 
@@ -43,8 +41,8 @@ if [[ "${DO_PRETRAIN}" = "true" ]]; then
         -c 8 \
         --mem=64g \
         -t 14-0:00 \
-        --output logs/${TASK}_pretrain_${SUFFIX}.log \
-        pretrain_general.sh ${TASK} ${PRETRAIN_DATA_PATH} "0,1,2,3" 4 ${TASK}_${SUFFIX} ${PORT} ${PRETRAIN_OUTPUT_DIR} ${CACHE} "${OTHER_ARGS}" ${LR})
+        --output ${LOGDIR}/${TASK}_pretrain_${SUFFIX}.log \
+        train/pretrain_general.sh ${TASK} ${PRETRAIN_DATA_PATH} "0,1,2,3" 4 ${TASK}_${SUFFIX} ${PORT} ${PRETRAIN_OUTPUT_DIR} ${CACHE} "${OTHER_ARGS}" ${LR})
     echo -n "${jid} "
     dependency="--dependency afterok:${jid}"
 else

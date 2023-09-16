@@ -1,8 +1,5 @@
 #!/bin/bash
-ARGS=$1
-VIRTUAL_ENV=$2
-CACHE=$3
-PILE_PATH=$4
+source config.sh
 
 source ${VIRTUAL_ENV}/bin/activate
 
@@ -15,6 +12,6 @@ export TORCH_EXTENSIONS_DIR=$CACHE
 
 ARGS=$1
 
-python reformat_and_chunk_data.py ${ARGS}
+python preprocessing/reformat_and_chunk_data.py ${ARGS}
 
 

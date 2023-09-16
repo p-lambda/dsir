@@ -42,7 +42,6 @@ def parse_file_name(name):
         'seed': seed, }
 
 
-
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Read GLUE results')
@@ -69,6 +68,7 @@ if __name__ == "__main__":
     grouped_df = df.groupby(['task_name', 'epochs', 'bs', 'lr']).agg({'dev': ['mean', 'std', 'median']})
     grouped_df.columns = ['mean', 'std', 'median']
     grouped_df = grouped_df.reset_index()
+    # we only run one set of hyperparams per task in the paper, so this max-median selection is a no-op
     max_median_idx = grouped_df.groupby(['task_name', 'epochs', 'bs', 'lr'])['median'].transform(max) == grouped_df['median']
     df = grouped_df[max_median_idx]
     df = df.reset_index()

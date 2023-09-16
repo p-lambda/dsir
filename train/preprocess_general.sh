@@ -1,4 +1,6 @@
 #!/bin/bash
+source config.sh
+
 source ${VIRTUAL_ENV}/bin/activate
 
 TASK=$1

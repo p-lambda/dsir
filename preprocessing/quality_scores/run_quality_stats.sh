@@ -1,6 +1,5 @@
 #!/bin/bash
 
-ds_path=$1
-pile_path=$2
+DS_PATH=$1
 
-python compute_quality_stats.py --ds_path ${ds_path}
+python preprocessing/quality_scores/compute_quality_stats.py --ds_path ${DS_PATH}

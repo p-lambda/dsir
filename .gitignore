@@ -133,3 +133,4 @@ train/logs
 train/wandb
 train/__pycache__
 glue_eval/wandb
+logs/

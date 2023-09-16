@@ -1,16 +1,14 @@
 from pathlib import Path
-from itertools import cycle, zip_longest
+from itertools import zip_longest
 import random
 import argparse
 import json
 import shutil
-import string
 from collections import defaultdict
-import os
 import subprocess
+from itertools import islice
 
 from tqdm import tqdm
-from nltk import word_tokenize
 from nltk.tokenize import WordPunctTokenizer
 import numpy as np
 from datasets import load_dataset
@@ -29,42 +27,39 @@ dsname_to_args = {
                  'task_name': None,
                  'columns': ['text']},
     'citation_intent': {'dataset_name': "yxchar/citation_intent-tlm",
-        'task_name': None,
-        'columns': ['text']},
-    'hyperpartisan': {
-        'dataset_name': "yxchar/hyp-tlm",
-        'task_name': None,
-        'columns': ['text']},
-    'rct': {
-        'dataset_name': "yxchar/rct-20k-tlm",
-        'task_name': None,
-        'columns': ['text']},
+                        'task_name': None,
+                        'columns': ['text']},
+    'hyperpartisan': {'dataset_name': "yxchar/hyp-tlm",
+                      'task_name': None,
+                      'columns': ['text']},
+    'rct': {'dataset_name': "yxchar/rct-20k-tlm",
+            'task_name': None,
+            'columns': ['text']},
     'imdb': {'dataset_name': 'yxchar/imdb-tlm',
              'task_name': None,
              'columns': ['text']},
     'sciie': {'dataset_name': 'yxchar/sciie-tlm',
-                'task_name': None,
-                'columns': ['text']},
+              'task_name': None,
+              'columns': ['text']},
     'helpfulness': {'dataset_name': 'yxchar/amazon-tlm',
-        'task_name': None,
-        'columns': ['text']},
+                    'task_name': None,
+                    'columns': ['text']},
     'pile_val': {'dataset_name': 'json',
-        'task_name': None, # to be set later
-        'quality_scores': None, # to be set later
-             'columns': ['contents'],
-             },
+                 'task_name': None,  # to be set later
+                 'quality_scores': None,  # to be set later
+                 'columns': ['contents'], },
     'pile': {'dataset_name': 'json',
-        'task_name': None, # to be set later
-        'quality_scores': None, # to be set later
+             'task_name': None,  # to be set later
+             'quality_scores': None,  # to be set later
              'columns': ['contents'],
-             'total_lines': 1745766302,
-             },
+             'total_lines': 1745766302, },
  }
 
 
 subsets = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10',
            '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
            '21', '22', '23', '24', '25', '26', '27', '28', '29']
+
 
 def get_quality_mask(quality_scores):
     keep = (
@@ -83,7 +78,6 @@ def hash_buckets(string, num_buckets=10e4):
     return int(abs(hash(string)) % num_buckets)
 
 
-from itertools import islice
 def unigrams_bigrams(text):
     words = text.split()
     return words, list(zip(words, islice(words, 1, None)))
@@ -218,10 +212,10 @@ def compute_domain_idxs(filter_domains):
 
     todo_domains = set(todo_domains)
     if len(todo_domains) > 0:
-        for i, ex in tqdm(enumerate(combined_streaming_ds), miniters=1000000, total=total_lines):
+        for i, ex in tqdm(enumerate(combined_streaming_ds), miniters=1000000):
             domain = ex["metadata"]["pile_set_name"]
             if domain in todo_domains:
-                domain_to_idxs[domain].append(k)
+                domain_to_idxs[domain].append(i)
         for domain, idxs in domain_to_idxs.items():
             np.save(Path(ds_path).parent / f"{domain.replace(' ', '_')}_idxs.npy", np.asarray(idxs))
 
@@ -238,7 +232,7 @@ def resample(ds_dir, cache_ds_dir, num_to_retrieve):
         suffix = '_pack'
     else:
         suffix = '_nopack'
-    retrieved_dir = ds_dir / f'retrieved'
+    retrieved_dir = ds_dir / 'retrieved'
     retrieved_path_cache = cache_ds_dir / f'retrieved_{num_to_retrieve}{suffix}.jsonl'
 
     retrieved_dir.mkdir(parents=True, exist_ok=True)
@@ -305,7 +299,6 @@ def resample(ds_dir, cache_ds_dir, num_to_retrieve):
     del nonzero_idxs
     del chosen_idxs
 
-
     combined_streaming_ds = load_dataset(
             'json',
             data_files=dsname_to_args['pile']['task_name'],
@@ -325,7 +318,7 @@ def resample(ds_dir, cache_ds_dir, num_to_retrieve):
                 elif args.pack_every_2_examples and prev_ex is None:
                     prev_ex = curr_ex
                 else:
-                    four.write(json.dumps(curr_ex).strip() + '\n')
+                    fout.write(json.dumps(curr_ex).strip() + '\n')
 
     shutil.move(retrieved_path_cache, retrieved_path)
 
@@ -371,7 +364,7 @@ if __name__ == "__main__":
 
     dsname_to_args['pile'].update(
         {'task_name': [f'{args.pile_path}/{chunked_dir}/{subset}_128/{subset}_128.json' for subset in subsets],
-        'quality_scores': f'{args.pile_path}/{chunked_dir}/combined_all.json_qualityscores.npz'}
+         'quality_scores': f'{args.pile_path}/{chunked_dir}/combined_all.json_qualityscores.npz'}
             )
 
     cache_ds_dir = Path(args.cache_dir) / 'ngram_cache' / args.ds_name

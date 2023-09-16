@@ -2,7 +2,7 @@
 # Train general-domain model from scratch
 # We first try learning rate 1e-3, then lower to 8e-4 if the loss diverges
 
-bash run_pretrain_pipeline_general.sh \
+bash train/run_pretrain_pipeline_general.sh \
       wiki_and_books \
       dsir_scratch \
       60200 \
