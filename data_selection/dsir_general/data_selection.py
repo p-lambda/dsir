@@ -130,7 +130,7 @@ def resample(args, data_files, cache_ds_dir, streaming=False):
 
         with open(retrieved_path_cache, 'w') as fout:
             for i, curr_ex in tqdm(enumerate(combined_streaming_ds)):
-                curr_ex["timestamp"] = curr_ex["timestamp"].strftime("%m/%d/%Y, %H:%M:%S")
+                # curr_ex["timestamp"] = curr_ex["timestamp"].strftime("%m/%d/%Y, %H:%M:%S") 
                 if global_mask[i]:
                     fout.write(dumps(curr_ex) + "\n")
 
