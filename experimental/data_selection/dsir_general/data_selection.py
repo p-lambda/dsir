@@ -90,16 +90,13 @@ def resample(args, data_files, cache_ds_dir, streaming=False):
 
     print("logratios cnt", len(logratios))
 
-    global_mask = np.ones(len(logratios)).astype(bool)
     # noise the logratios
     logratios += np.random.gumbel(size=len(logratios))
 
-    nonzero_idxs = np.where(global_mask)[0]
     # choose top k
     chosen_idxs = np.argpartition(-logratios, args.num_to_retrieve)[:args.num_to_retrieve]
-    chosen_idxs = nonzero_idxs[chosen_idxs]
 
-    global_mask = np.zeros(len(global_mask)).astype(bool)
+    global_mask = np.zeros(len(logratios)).astype(bool)
     global_mask[chosen_idxs] = True
 
     del nonzero_idxs
@@ -130,7 +127,7 @@ def resample(args, data_files, cache_ds_dir, streaming=False):
 
         with open(retrieved_path_cache, 'w') as fout:
             for i, curr_ex in tqdm(enumerate(combined_streaming_ds)):
-                # curr_ex["timestamp"] = curr_ex["timestamp"].strftime("%m/%d/%Y, %H:%M:%S") 
+                # curr_ex["timestamp"] = curr_ex["timestamp"].strftime("%m/%d/%Y, %H:%M:%S")
                 if global_mask[i]:
                     fout.write(dumps(curr_ex) + "\n")
 
