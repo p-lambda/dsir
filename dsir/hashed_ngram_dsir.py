@@ -165,7 +165,6 @@ class HashedNgramDSIR(DSIR):
         super().save(path)
 
         path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
         if self.raw_probs is not None:
             np.save(str(path / 'raw_probs.npy'), self.raw_probs)
         if self.target_probs is not None:
