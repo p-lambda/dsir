@@ -4,7 +4,7 @@ import numpy as np
 import json
 import shutil
 
-from dsir.hashed_ngram_dsir import HashedNgramDSIR, hash_buckets, get_ngram_counts
+from data_selection.hashed_ngram_dsir import HashedNgramDSIR, hash_buckets, get_ngram_counts
 
 
 toy_dataset = Path(__file__).parent / "toy_pile_data.jsonl"
@@ -147,4 +147,11 @@ def test_save_load(dsir_obj):
     assert dsir_obj_2.ngrams == dsir_obj.ngrams
 
 if __name__ == "__main__":
-    test_get_ngram_counts()
+    dsir = HashedNgramDSIR(
+            raw_datasets,
+            parse_example_fn=parse_example_fn,
+            num_proc=2,
+            ngrams=2,
+            num_buckets=10000)
+
+    test_resample(dsir)

@@ -10,8 +10,8 @@ from nltk.tokenize import word_tokenize
 from nltk import ngrams as get_ngrams
 import numpy as np
 
-from dsir.base import DSIR, default_load_dataset_fn, default_parse_example_fn
-from dsir.utils import parallelize
+from data_selection.base import DSIR, default_load_dataset_fn, default_parse_example_fn
+from data_selection.utils import parallelize
 
 
 wpt = WordPunctTokenizer()

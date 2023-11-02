@@ -1,4 +1,4 @@
-from dsir import utils
+from data_selection import utils
 
 
 def job(arg):

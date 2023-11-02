@@ -9,7 +9,7 @@ import numpy as np
 from datasets import load_dataset
 from tqdm import tqdm
 
-from dsir.utils import parallelize
+from data_selection.utils import parallelize
 
 
 def default_load_dataset_fn(path: str) -> Iterable[Dict]:
