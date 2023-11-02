@@ -1,7 +1,6 @@
 from pathlib import Path
 import shutil
-from typing import List, Optional, Dict, Callable, Union
-from collections.abc import Iterable
+from typing import List, Optional, Dict, Callable, Union, Iterable
 from json import dumps, loads
 import hashlib
 import pickle
@@ -11,9 +10,7 @@ from nltk.tokenize import word_tokenize
 from nltk import ngrams as get_ngrams
 import numpy as np
 
-from datasets import load_dataset
-
-from dsir.base import DSIR
+from dsir.base import DSIR, default_load_dataset_fn, default_parse_example_fn
 from dsir.utils import parallelize
 
 
@@ -27,10 +24,16 @@ def hash_buckets(text: str, num_buckets: int = 10000) -> int:
 def get_ngram_counts(line: str,
                      n: int = 2,
                      num_buckets: int = 10000,
-                     counts: np.ndarray = None,
+                     counts: Optional[np.ndarray] = None,
                      tokenizer: Callable = word_tokenize) -> np.ndarray:
-    '''
-    If counts is given, modify counts.
+    '''Return ngram count features given a string.
+
+    Args:
+        line: string to get ngram counts from
+        n: n in ngrams
+        num_buckets: number of buckets to hash ngrams into
+        counts: pre-initialized counts array
+        tokenizer: tokenization function to use. Defaults to word_tokenize from nltk
     '''
     words = tokenizer(line.lower())
 
@@ -46,14 +49,11 @@ def get_ngram_counts(line: str,
     return counts
 
 
-def default_parse_example_fn(ex: Dict) -> str:
-    return ex['text']
-
-
 class HashedNgramDSIR(DSIR):
 
     def __init__(self,
                  raw_datasets: List[str],
+                 load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
                  parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
                  num_proc: Optional[int] = None,
                  ngrams: int = 2,
@@ -62,7 +62,8 @@ class HashedNgramDSIR(DSIR):
         '''Initialize the HashedNgramDSIR object.
 
         Args:
-            raw_datasets: List of paths to jsonl files
+            raw_datasets: List of paths to jsonl-like files loadable by HuggingFace's load_dataset function.
+            load_dataset_fn: Function to load a dataset from a path. Defaults to default_load_dataset_fn.
             parse_example_fn: Function that takes in an example dict and returns a string.
                               Defaults to returning the 'text' field of the example.
             num_proc: number of processes to use for parallelization. Defaults to number of cores.
@@ -72,6 +73,7 @@ class HashedNgramDSIR(DSIR):
         '''
         super().__init__(
                 raw_datasets=raw_datasets,
+                load_dataset_fn=load_dataset_fn,
                 parse_example_fn=parse_example_fn,
                 num_proc=num_proc)
         if tokenizer == 'word_tokenize':
@@ -96,10 +98,7 @@ class HashedNgramDSIR(DSIR):
 
         def job(path: str):
             counts = np.zeros(self.num_buckets).astype(int)
-            dataset = load_dataset(
-                    'json',
-                    data_files=[path],
-                    streaming=True)['train']
+            dataset = self.load_dataset_fn(path)
             for ex in tqdm(dataset, miniters=10000, maxinterval=1000000):
                 if self.parse_example_fn is not None:
                     text = self.parse_example_fn(ex)
@@ -125,7 +124,7 @@ class HashedNgramDSIR(DSIR):
     def fit_importance_estimator(self, target_datasets: List[str], num_tokens_to_fit: Union[str, int] = 'all') -> None:
         '''Fit the importance estimator.
         Args:
-            target_datasets: List of paths to jsonl files or HuggingFace datasets
+            target_datasets: List of paths to jsonl-like files loadable by HuggingFace's load_dataset function.
             num_tokens_to_fit: number of tokens to fit the importance estimator on.
                                Set to "all" to fit on all tokens, and "auto" to determine
                                the number of tokens to fit on automatically (100k * num_buckets).
@@ -145,10 +144,7 @@ class HashedNgramDSIR(DSIR):
         def job(path: str):
             log_importance_weights = []
 
-            dataset = load_dataset(
-                    'json',
-                    data_files=[path],
-                    streaming=True)['train']
+            dataset = self.load_dataset_fn(path)
 
             for ex in tqdm(dataset, miniters=10000, maxinterval=1000000):
                 if self.parse_example_fn is not None:

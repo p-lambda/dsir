@@ -1,7 +1,6 @@
 # base DSIR class
 import os
-from collections.abc import Iterable
-from typing import List, Optional, Dict, Callable
+from typing import List, Optional, Dict, Callable, Iterable
 import multiprocessing as mp
 from pathlib import Path
 import shutil
@@ -13,19 +12,44 @@ from tqdm import tqdm
 from dsir.utils import parallelize
 
 
+def default_load_dataset_fn(path: str) -> Iterable[Dict]:
+    """Load dataset from path
+
+    Args:
+        path (str): path to dataset file
+    """
+    return load_dataset('json',
+                        data_files=[path],
+                        streaming=True)['train']
+
+
+def default_parse_example_fn(ex: Dict) -> str:
+    """Default parse function from example dict to string
+
+    Args:
+        ex (Dict): example dict
+    """
+    return ex['text']
+
 
 class DSIR():
-    '''Base class for data selection with importance resampling.'''
+    """Base class for data selection with importance resampling (DSIR)."""
 
-    def __init__(self, raw_datasets: List[str], parse_example_fn: Callable[[Dict], str] = None,  num_proc: Optional[int] = None):
-        '''
+    def __init__(self,
+                 raw_datasets: List[str],
+                 load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
+                 parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
+                 num_proc: Optional[int] = None):
+        """
         Args:
             raw_datasets: List of dataset paths to jsonl files
+            load_dataset_fn: Function to load dataset from path
             parse_example_fn: a function that takes in an element from raw_datasets and outputs a string
             num_proc: num cpus to parallelize over. Parallelism is limited to the number of shards (len(raw_datasets))
-        '''
+        """
         self.raw_datasets = raw_datasets
         self.parse_example_fn = parse_example_fn
+        self.load_dataset_fn = load_dataset_fn
         if num_proc is None:
             try:
                 # doesn't work on some systems
@@ -38,30 +62,30 @@ class DSIR():
         self.log_importance_weights = None
 
     def importance_estimator(self, text: str) -> float:
-        '''Takes text and outputs an importance weight.'''
+        """Takes text and outputs an importance weight."""
         raise NotImplementedError
 
     def fit_importance_estimator(self, target_datasets: List[str]) -> None:
-        '''Fits parameters needed to run self.importance_estimator.
+        """Fits parameters needed to run self.importance_estimator.
 
         Args:
             target_datasets: List of dataset paths to jsonl files
-        '''
+        """
         raise NotImplementedError
 
     def compute_importance_weights(self) -> np.ndarray:
-        '''Compute importance weights on raw dataset with self.importance_estimator. Returns importance weights and saves them in self.importance_weights.'''
+        """Compute importance weights on raw dataset with self.importance_estimator. Returns importance weights and saves them in self.importance_weights."""
         raise NotImplementedError
 
     def resample(self, out_dir: str, num_to_sample: int, cache_dir: str = None, top_k: bool = False) -> None:
-        '''Resample raw dataset with self.importance_weights.
+        """Resample raw dataset with self.importance_weights.
 
         Args:
             out_dir (str): path to save resampled dataset
             num_to_sample (int): number of samples to resample
             cache_dir (str): path to cache resampled dataset
             top_k (bool): if True, get top_k examples by importance weight instead of sampling
-        '''
+        """
         if cache_dir is None:
             cache_dir = out_dir
 
@@ -102,10 +126,7 @@ class DSIR():
                             if mask[i]:
                                 f.write(line.strip() + '\n')
             else:
-                dataset = load_dataset(
-                        'json',
-                        data_files=[in_path],
-                        streaming=True)['train']
+                dataset = self.load_dataset_fn(in_path)
 
                 with open(out_path, 'w') as f:
                     for i, ex in tqdm(enumerate(dataset), miniters=10000, maxinterval=1000000):
@@ -120,15 +141,15 @@ class DSIR():
         # move the cache_dir to out_dir
         shutil.move(str(cache_dir), str(out_dir))
 
-    def save(self, path: str):
-        '''Save parameters to save computation'''
+    def save(self, path: str) -> None:
+        """Save parameters to save computation"""
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
         if self.log_importance_weights is not None:
             np.save(str(path / 'log_importance_weights.npy'), self.log_importance_weights)
 
-    def load(self, path: str):
-        '''Load saved parameters'''
+    def load(self, path: str) -> None:
+        """Load saved parameters"""
         path = Path(path)
         log_importance_weights_path = path / 'log_importance_weights.npy'
         if log_importance_weights_path.exists():
