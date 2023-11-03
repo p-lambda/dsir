@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Callable, Iterable
 import multiprocessing as mp
 from pathlib import Path
 import shutil
+import pickle
 
 import numpy as np
 from datasets import load_dataset
@@ -32,24 +33,40 @@ def default_parse_example_fn(ex: Dict) -> str:
     return ex['text']
 
 
+
+def _iterate_virtually_sharded_dataset(dataset: Iterable, num_shards: int, shard_idx: int):
+    for i, ex in enumerate(dataset):
+        if i % num_shards == shard_idx:
+            yield ex
+
+
 class DSIR():
     """Base class for data selection with importance resampling (DSIR)."""
 
     def __init__(self,
                  raw_datasets: List[str],
-                 load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
-                 parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
+                 target_datasets: List[str],
+                 raw_load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
+                 raw_parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
+                 target_load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
+                 target_parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
                  num_proc: Optional[int] = None):
         """
         Args:
-            raw_datasets: List of dataset paths to jsonl files
-            load_dataset_fn: Function to load dataset from path
-            parse_example_fn: a function that takes in an element from raw_datasets and outputs a string
+            raw_datasets: List of data paths
+            target_datasets: List of data paths
+            raw_load_dataset_fn: Function to load raw dataset from path
+            raw_parse_example_fn: a function that takes in an example dict and outputs a string
+            target_load_dataset_fn: Function to load target dataset from path
+            target_parse_example_fn: a function that takes in an example dict and outputs a string
             num_proc: num cpus to parallelize over. Parallelism is limited to the number of shards (len(raw_datasets))
         """
         self.raw_datasets = raw_datasets
-        self.parse_example_fn = parse_example_fn
-        self.load_dataset_fn = load_dataset_fn
+        self.target_datasets = target_datasets
+        self.raw_parse_example_fn = raw_parse_example_fn
+        self.raw_load_dataset_fn = raw_load_dataset_fn
+        self.target_parse_example_fn = target_parse_example_fn
+        self.target_load_dataset_fn = target_load_dataset_fn
         if num_proc is None:
             try:
                 # doesn't work on some systems
@@ -58,18 +75,33 @@ class DSIR():
                 self.num_proc = mp.cpu_count()
         else:
             self.num_proc = num_proc
-        self.num_proc = min(self.num_proc, len(self.raw_datasets))
         self.log_importance_weights = None
+
+    def _get_virtually_sharded_datasets(self, datasets: List[str]):
+        """Return virtual shard parameters."""
+        num_proc_per_shard = max(1, self.num_proc // len(datasets))
+        if self.num_proc >= len(datasets):
+            remainder = self.num_proc % len(datasets)
+        else:
+            remainder = 0
+
+        shard_params = []
+        for i, dataset in enumerate(datasets):
+            curr_num_proc = num_proc_per_shard
+            if i < remainder:
+                curr_num_proc += 1
+            for j in range(curr_num_proc):
+                shard_params.append({'path': dataset, 'shard_idx': j, 'num_shards': curr_num_proc})
+        return shard_params
 
     def importance_estimator(self, text: str) -> float:
         """Takes text and outputs an importance weight."""
         raise NotImplementedError
 
-    def fit_importance_estimator(self, target_datasets: List[str]) -> None:
+    def fit_importance_estimator(self) -> None:
         """Fits parameters needed to run self.importance_estimator.
 
         Args:
-            target_datasets: List of dataset paths to jsonl files
         """
         raise NotImplementedError
 
@@ -117,24 +149,34 @@ class DSIR():
             in_path = args['in_path']
             out_path = args['out_path']
             mask = args['mask']
+            shard_idx = args['shard_idx']
+            num_shards = args['num_shards']
 
             if Path(in_path).suffix == '.jsonl':
                 # faster to not load json into dicts
                 with open(out_path, 'w') as f:
                     with open(in_path, 'r') as f_in:
-                        for i, line in tqdm(enumerate(f_in), miniters=10000, maxinterval=1000000):
+                        iterator = _iterate_virtually_sharded_dataset(f_in, num_shards, shard_idx)
+                        for i, line in tqdm(enumerate(iterator), miniters=10000, maxinterval=1000000):
                             if mask[i]:
                                 f.write(line.strip() + '\n')
             else:
-                dataset = self.load_dataset_fn(in_path)
+                dataset = self.raw_load_dataset_fn(in_path)
 
                 with open(out_path, 'w') as f:
-                    for i, ex in tqdm(enumerate(dataset), miniters=10000, maxinterval=1000000):
+                    iterator = _iterate_virtually_sharded_dataset(dataset, num_shards, shard_idx)
+                    for i, ex in tqdm(enumerate(iterator), miniters=10000, maxinterval=1000000):
                         if mask[i]:
                             f.write(dumps(ex) + '\n')
+                del dataset
 
-        args = [{'out_path': cache_dir / f"{i}.jsonl", 'in_path': self.raw_datasets[i], 'mask': masks[i]}
-                for i in range(len(self.raw_datasets))]
+        sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
+        args = [{'out_path': cache_dir / f"{i}.jsonl",
+                 'in_path': shard_params['path'],
+                 'mask': masks[i],
+                 'shard_idx': shard_params['shard_idx'],
+                 'num_shards': shard_params['num_shards']}
+                for i, shard_params in enumerate(sharded_raw_datasets)]
 
         parallelize(job, args, self.num_proc)
 
@@ -148,9 +190,28 @@ class DSIR():
         if self.log_importance_weights is not None:
             np.save(str(path / 'log_importance_weights.npy'), self.log_importance_weights)
 
+        metadata = {'raw_datasets': self.raw_datasets,
+                    'target_datasets': self.target_datasets,
+                    'raw_parse_example_fn': self.raw_parse_example_fn,
+                    'raw_load_dataset_fn': self.raw_load_dataset_fn,
+                    'target_parse_example_fn': self.target_parse_example_fn,
+                    'target_load_dataset_fn': self.target_load_dataset_fn,
+                    }
+        # pickle the metadata
+        with open(str(path / 'metadata.pkl'), 'wb') as f:
+            pickle.dump(metadata, f)
+
     def load(self, path: str) -> None:
         """Load saved parameters"""
         path = Path(path)
         log_importance_weights_path = path / 'log_importance_weights.npy'
         if log_importance_weights_path.exists():
             self.log_importance_weights = np.load(str(log_importance_weights_path))
+
+        metadata_path = path / 'metadata.pkl'
+        with open(str(metadata_path), 'rb') as f:
+            metadata = pickle.load(f)
+
+        for k, v in metadata.items():
+            setattr(self, k, v)
+

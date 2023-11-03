@@ -10,7 +10,13 @@ from nltk.tokenize import word_tokenize
 from nltk import ngrams as get_ngrams
 import numpy as np
 
-from data_selection.base import DSIR, default_load_dataset_fn, default_parse_example_fn
+from data_selection.base import (
+        DSIR,
+        default_load_dataset_fn,
+        default_parse_example_fn,
+        _iterate_virtually_sharded_dataset,
+)
+
 from data_selection.utils import parallelize
 
 
@@ -53,16 +59,20 @@ class HashedNgramDSIR(DSIR):
 
     def __init__(self,
                  raw_datasets: List[str],
-                 load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
-                 parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
+                 target_datasets: List[str],
+                 raw_load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
+                 raw_parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
+                 target_load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
+                 target_parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
                  num_proc: Optional[int] = None,
                  ngrams: int = 2,
                  num_buckets: int = 10000,
-                 tokenizer: str = 'word_tokenize') -> None:
+                 tokenizer: str = 'wordpunct') -> None:
         '''Initialize the HashedNgramDSIR object.
 
         Args:
-            raw_datasets: List of paths to jsonl-like files loadable by HuggingFace's load_dataset function.
+            raw_datasets: List of data paths
+            target_datasets: List of data paths
             load_dataset_fn: Function to load a dataset from a path. Defaults to default_load_dataset_fn.
             parse_example_fn: Function that takes in an example dict and returns a string.
                               Defaults to returning the 'text' field of the example.
@@ -73,8 +83,11 @@ class HashedNgramDSIR(DSIR):
         '''
         super().__init__(
                 raw_datasets=raw_datasets,
-                load_dataset_fn=load_dataset_fn,
-                parse_example_fn=parse_example_fn,
+                target_datasets=target_datasets,
+                raw_load_dataset_fn=raw_load_dataset_fn,
+                raw_parse_example_fn=raw_parse_example_fn,
+                target_load_dataset_fn=target_load_dataset_fn,
+                target_parse_example_fn=target_parse_example_fn,
                 num_proc=num_proc)
         if tokenizer == 'word_tokenize':
             self.tokenizer = word_tokenize
@@ -88,20 +101,28 @@ class HashedNgramDSIR(DSIR):
         self.target_probs = None
         self.log_diff = None
         self.log_importance_weights = None
-        self.target_datasets = None
 
     def importance_estimator(self, text: str) -> float:
         ngram_feats = get_ngram_counts(text, tokenizer=self.tokenizer)
         return np.inner(ngram_feats, self.log_diff)
 
-    def _fit_bow(self, paths: List[str], num_tokens_to_fit: Optional[int] = None) -> np.ndarray:
+    def _fit_bow(self,
+                 paths: List[str],
+                 num_tokens_to_fit: Optional[int] = None,
+                 load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
+                 parse_example_fn: Callable[[Dict], str] = default_parse_example_fn) -> np.ndarray:
 
-        def job(path: str):
+        def job(args: Dict):
+            path = args['path']
+            num_shards = args['num_shards']
+            shard_idx = args['shard_idx']
+
             counts = np.zeros(self.num_buckets).astype(int)
-            dataset = self.load_dataset_fn(path)
-            for ex in tqdm(dataset, miniters=10000, maxinterval=1000000):
-                if self.parse_example_fn is not None:
-                    text = self.parse_example_fn(ex)
+            dataset = load_dataset_fn(path)
+            iterator = _iterate_virtually_sharded_dataset(dataset, num_shards, shard_idx)
+            for ex in tqdm(iterator, miniters=10000, maxinterval=1000000):
+                if parse_example_fn is not None:
+                    text = parse_example_fn(ex)
                 else:
                     text = ex
                 counts = get_ngram_counts(text,
@@ -112,20 +133,22 @@ class HashedNgramDSIR(DSIR):
 
                 if num_tokens_to_fit is not None and counts.sum() > num_tokens_to_fit // len(paths):
                     break
+            del dataset
 
             return counts
 
-        all_counts = parallelize(job, paths, self.num_proc)
+        sharded_datasets = self._get_virtually_sharded_datasets(paths)
+        all_counts = parallelize(job, sharded_datasets, self.num_proc)
         counts = sum(all_counts)
 
         counts = counts / counts.sum()
         return counts
 
-    def fit_importance_estimator(self, target_datasets: List[str], num_tokens_to_fit: Union[str, int] = 'all') -> None:
+    def fit_importance_estimator(self, num_tokens_to_fit: Union[str, int] = 'auto') -> None:
         '''Fit the importance estimator.
         Args:
             target_datasets: List of paths to jsonl-like files loadable by HuggingFace's load_dataset function.
-            num_tokens_to_fit: number of tokens to fit the importance estimator on.
+            num_tokens_to_fit: number of tokens to fit the raw dataset importance estimator on.
                                Set to "all" to fit on all tokens, and "auto" to determine
                                the number of tokens to fit on automatically (100k * num_buckets).
                                Set to an integer to fit on that many tokens.
@@ -135,26 +158,41 @@ class HashedNgramDSIR(DSIR):
         elif num_tokens_to_fit == 'all':
             num_tokens_to_fit = None
 
-        self.raw_probs = self._fit_bow(self.raw_datasets, num_tokens_to_fit=num_tokens_to_fit)
-        self.target_probs = self._fit_bow(target_datasets, num_tokens_to_fit=num_tokens_to_fit)
+        self.raw_probs = self._fit_bow(
+                self.raw_datasets,
+                num_tokens_to_fit=num_tokens_to_fit,
+                parse_example_fn=self.raw_parse_example_fn,
+                load_dataset_fn=self.raw_load_dataset_fn)
+        self.target_probs = self._fit_bow(
+                self.target_datasets,
+                num_tokens_to_fit=None,  # fit on all tokens for target
+                parse_example_fn=self.target_parse_example_fn,
+                load_dataset_fn=self.target_load_dataset_fn)
 
         self.log_diff = np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)
 
     def compute_importance_weights(self) -> np.ndarray:
-        def job(path: str):
+        def job(args: Dict):
+            path = args['path']
+            num_shards = args['num_shards']
+            shard_idx = args['shard_idx']
+
             log_importance_weights = []
 
-            dataset = self.load_dataset_fn(path)
+            dataset = self.raw_load_dataset_fn(path)
 
-            for ex in tqdm(dataset, miniters=10000, maxinterval=1000000):
-                if self.parse_example_fn is not None:
-                    text = self.parse_example_fn(ex)
+            iterator = _iterate_virtually_sharded_dataset(dataset, num_shards, shard_idx)
+            for ex in tqdm(iterator, miniters=10000, maxinterval=1000000):
+                if self.raw_parse_example_fn is not None:
+                    text = self.raw_parse_example_fn(ex)
                 else:
                     text = ex
                 log_importance_weights.append(self.importance_estimator(text))
             log_importance_weights = np.asarray(log_importance_weights)
+            del dataset
             return log_importance_weights
-        self.log_importance_weights = parallelize(job, self.raw_datasets, self.num_proc)
+        sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
+        self.log_importance_weights = parallelize(job, sharded_raw_datasets, self.num_proc)
         return self.log_importance_weights
 
     def save(self, path: str):
@@ -168,11 +206,13 @@ class HashedNgramDSIR(DSIR):
         if self.log_diff is not None:
             np.save(str(path / 'log_diff.npy'), self.log_diff)
 
-        metadata = {'num_buckets': self.num_buckets,
-                    'ngrams': self.ngrams,
-                    'raw_datasets': self.raw_datasets,
-                    'target_datasets': self.target_datasets,
-                    'parse_example_fn': self.parse_example_fn}
+        with open(str(path / 'metadata.pkl'), 'rb') as f:
+            metadata = pickle.load(f)
+
+        metadata.update({
+            'num_buckets': self.num_buckets,
+            'ngrams': self.ngrams,
+            'tokenizer': self.tokenizer})
 
         # pickle the metadata
         with open(str(path / 'metadata.pkl'), 'wb') as f:
@@ -196,9 +236,3 @@ class HashedNgramDSIR(DSIR):
             assert(
                 np.allclose(self.log_diff, np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)))
 
-        metadata_path = path / 'metadata.pkl'
-        with open(str(metadata_path), 'rb') as f:
-            metadata = pickle.load(f)
-
-        for k, v in metadata.items():
-            setattr(self, k, v)

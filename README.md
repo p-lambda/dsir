@@ -5,12 +5,12 @@
 This repository contains the [DSIR](https://arxiv.org/abs/2302.03169) data selection tool for selecting relevant language model training data from any raw data source given a target dataset, as well as pre-filtered datasets and some pretrained models.
 
 DSIR is built for:
-- fast, large-scale (trillion-token scale) data selection from large raw text datasets (Pile, RefinedWeb, RedPajama, ...)
-- selecting data that is distributed like a given target dataset (domain-specific data, Wikipedia, ...). Relevance and diversity are balanced automatically.
+- fast, large-scale (trillion-token scale) data selection from large raw text datasets (Pile, RefinedWeb, RedPajama, ...). There is almost no overhead to selecting more examples (unlike retrieval), other than the time it takes to write the extra examples to disk.
+- selecting data that is distributed like a given target dataset (domain-specific data, Wikipedia, ...). Relevance and diversity are balanced automatically by matching the distribution of the target dataset on a feature space (e.g., n-gram frequencies).
 
 Compute needed:
 - 1 CPU node
-- a large amount of RAM (at least few hundred GB)
+- a decent amount of RAM (at least 64GB - need to hold a couple floats per example in memory)
 - a high number of cores (parallelism on a file level. For best performance, use as many CPU cores as data files)
 
 ![DSIR figure](fig1.png)
@@ -37,12 +37,15 @@ from data_selection import HashedNgramDSIR
 raw_datasets = [<list of paths>]
 target_datasets = [<list of paths>]
 
-dsir = HashedNgramDSIR(raw_datasets, num_proc=30)
-dsir.fit_importance_estimator(target_datasets)
+dsir = HashedNgramDSIR(raw_datasets, target_datasets, num_proc=len(raw_datasets))
+dsir.fit_importance_estimator(num_tokens_to_fit='auto')
 dsir.compute_importance_weights()
 dsir.resample(out_dir='resampled', num_to_sample=1000000, cache_dir='/scr/resampled_cache')
 ```
-This will save 1M examples in `jsonl` files inside an output directory named `resampled`. The files will first be written to `cache_dir` and moved to `out_dir` upon completion.
+Running this would write 1M rows in `jsonl` files inside an output directory named `resampled`. The files will first be written to `cache_dir` and moved to `out_dir` upon completion. For best performance, use uncompressed `jsonl` files for all data paths. Splitting up large files into multiple files also improves the performance by allowing more parallelism. Custom functions for reading the data paths and extracting the text field from each example can be provided via the
+`{raw,target}_load_dataset_fn` and `{raw,target}_parse_example_fn` arguments to the constructor.
+
+For target datasets with a mixture of code and natural language, consider splitting up the code and natural language into separate target distributions (and resampling once with respect to each target) for best performance.
 
 The `dsir` intermediate results (after `fit_importance_estimator` and `compute_importance_weights`) can be saved and loaded for later use, for example to resample a different number of examples:
 ```
