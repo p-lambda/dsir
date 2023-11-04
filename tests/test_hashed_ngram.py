@@ -21,14 +21,17 @@ def dsir_obj():
     dsir = HashedNgramDSIR(
             raw_datasets=raw_datasets,
             target_datasets=target_datasets,
+            cache_dir='/tmp/dsir_params',
             raw_parse_example_fn=parse_example_fn,
             target_parse_example_fn=parse_example_fn,
             num_proc=2,
             ngrams=2,
             num_buckets=10000)
 
-    return dsir
+    yield dsir
 
+    if Path('/tmp/dsir_params').exists():
+        shutil.rmtree('/tmp/dsir_params')
 
 def test_hash_buckets():
     bucket = hash_buckets('alice')
@@ -100,17 +103,18 @@ def test_fit(dsir_obj):
 def test_compute(dsir_obj):
     dsir_obj.fit_importance_estimator()
 
-    log_importance_weights = dsir_obj.compute_importance_weights()
+    dsir_obj.compute_importance_weights()
 
-    assert dsir_obj.log_importance_weights is not None
-    assert len(dsir_obj.log_importance_weights) == len(raw_datasets)
-    assert dsir_obj.log_importance_weights[0].shape == (1000,)
+    log_importance_weights = [
+        np.load(dsir_obj.log_importance_weights_dir / f"{i}.npy") for i in range(2)]
+    assert len(log_importance_weights) == len(raw_datasets)
+    assert log_importance_weights[0].shape == (1000,)
 
 
 def test_resample(dsir_obj):
     dsir_obj.fit_importance_estimator()
 
-    log_importance_weights = dsir_obj.compute_importance_weights()
+    dsir_obj.compute_importance_weights()
 
     dsir_obj.resample(out_dir='/tmp/resampled', num_to_sample=2, cache_dir='/tmp/resampled_cache')
 
@@ -138,6 +142,7 @@ def test_resample_virtual_sharding():
     dsir_obj = HashedNgramDSIR(
             raw_datasets=raw_datasets,
             target_datasets=target_datasets,
+            cache_dir='/tmp/dsir_params',
             raw_parse_example_fn=parse_example_fn,
             target_parse_example_fn=parse_example_fn,
             num_proc=15,
@@ -148,7 +153,7 @@ def test_resample_virtual_sharding():
 
     dsir_obj.fit_importance_estimator()
 
-    log_importance_weights = dsir_obj.compute_importance_weights()
+    dsir_obj.compute_importance_weights()
 
     dsir_obj.resample(out_dir='/tmp/resampled_virtual', num_to_sample=2, cache_dir='/tmp/resampled_cache_virtual')
 
@@ -176,17 +181,17 @@ def test_resample_virtual_sharding():
 def test_save_load(dsir_obj):
     dsir_obj.fit_importance_estimator()
 
-    log_importance_weights = dsir_obj.compute_importance_weights()
+    dsir_obj.compute_importance_weights()
 
     dsir_obj.save('/tmp/dsir')
 
-    dsir_obj_2 = HashedNgramDSIR([], [])
+    dsir_obj_2 = HashedNgramDSIR([], [], 'cache')
     dsir_obj_2.load('/tmp/dsir')
 
     assert np.allclose(dsir_obj_2.raw_probs, dsir_obj.raw_probs)
     assert np.allclose(dsir_obj_2.target_probs, dsir_obj.target_probs)
     assert np.allclose(dsir_obj_2.log_diff, dsir_obj.log_diff)
-    assert np.allclose(dsir_obj_2.log_importance_weights, dsir_obj.log_importance_weights)
+    assert dsir_obj.cache_dir == dsir_obj_2.cache_dir
     assert dsir_obj_2.raw_datasets == dsir_obj.raw_datasets
     assert dsir_obj_2.target_datasets == dsir_obj.target_datasets
     assert dsir_obj_2.num_buckets == dsir_obj.num_buckets
@@ -195,7 +200,10 @@ def test_save_load(dsir_obj):
 if __name__ == "__main__":
     dsir = HashedNgramDSIR(
             raw_datasets,
-            parse_example_fn=parse_example_fn,
+            target_datasets,
+            cache_dir='/tmp/dsir_params',
+            raw_parse_example_fn=parse_example_fn,
+            target_parse_example_fn=parse_example_fn,
             num_proc=2,
             ngrams=2,
             num_buckets=10000)

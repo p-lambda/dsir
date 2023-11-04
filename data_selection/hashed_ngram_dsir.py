@@ -60,6 +60,7 @@ class HashedNgramDSIR(DSIR):
     def __init__(self,
                  raw_datasets: List[str],
                  target_datasets: List[str],
+                 cache_dir: str,
                  raw_load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
                  raw_parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
                  target_load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
@@ -73,6 +74,7 @@ class HashedNgramDSIR(DSIR):
         Args:
             raw_datasets: List of data paths
             target_datasets: List of data paths
+            cache_dir: place to store cached log_importance_weights
             load_dataset_fn: Function to load a dataset from a path. Defaults to default_load_dataset_fn.
             parse_example_fn: Function that takes in an example dict and returns a string.
                               Defaults to returning the 'text' field of the example.
@@ -84,6 +86,7 @@ class HashedNgramDSIR(DSIR):
         super().__init__(
                 raw_datasets=raw_datasets,
                 target_datasets=target_datasets,
+                cache_dir=cache_dir,
                 raw_load_dataset_fn=raw_load_dataset_fn,
                 raw_parse_example_fn=raw_parse_example_fn,
                 target_load_dataset_fn=target_load_dataset_fn,
@@ -100,7 +103,6 @@ class HashedNgramDSIR(DSIR):
         self.raw_probs = None
         self.target_probs = None
         self.log_diff = None
-        self.log_importance_weights = None
 
     def importance_estimator(self, text: str) -> float:
         ngram_feats = get_ngram_counts(text, tokenizer=self.tokenizer)
@@ -112,6 +114,7 @@ class HashedNgramDSIR(DSIR):
                  load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
                  parse_example_fn: Callable[[Dict], str] = default_parse_example_fn) -> np.ndarray:
 
+        sharded_datasets = self._get_virtually_sharded_datasets(paths)
         def job(args: Dict):
             path = args['path']
             num_shards = args['num_shards']
@@ -131,13 +134,11 @@ class HashedNgramDSIR(DSIR):
                                           counts=counts,
                                           tokenizer=self.tokenizer)
 
-                if num_tokens_to_fit is not None and counts.sum() > num_tokens_to_fit // len(paths):
+                if num_tokens_to_fit is not None and counts.sum() > num_tokens_to_fit // len(sharded_datasets):
                     break
-            del dataset
 
             return counts
 
-        sharded_datasets = self._get_virtually_sharded_datasets(paths)
         all_counts = parallelize(job, sharded_datasets, self.num_proc)
         counts = sum(all_counts)
 
@@ -171,11 +172,12 @@ class HashedNgramDSIR(DSIR):
 
         self.log_diff = np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)
 
-    def compute_importance_weights(self) -> np.ndarray:
+    def compute_importance_weights(self) -> None:
         def job(args: Dict):
             path = args['path']
             num_shards = args['num_shards']
             shard_idx = args['shard_idx']
+            overall_idx = args['overall_idx']
 
             log_importance_weights = []
 
@@ -189,11 +191,11 @@ class HashedNgramDSIR(DSIR):
                     text = ex
                 log_importance_weights.append(self.importance_estimator(text))
             log_importance_weights = np.asarray(log_importance_weights)
-            del dataset
-            return log_importance_weights
+            save_path = Path(self.log_importance_weights_dir) / f"{overall_idx}.npy"
+            np.save(str(save_path), log_importance_weights)
+
         sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
-        self.log_importance_weights = parallelize(job, sharded_raw_datasets, self.num_proc)
-        return self.log_importance_weights
+        parallelize(job, sharded_raw_datasets, self.num_proc)
 
     def save(self, path: str):
         super().save(path)
