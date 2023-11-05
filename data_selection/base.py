@@ -22,10 +22,8 @@ def default_load_dataset_fn(path: str) -> Iterable[Dict]:
     """
     with open(path, 'r') as f:
         for line in f:
-            try:
+            if len(line) > 0:
                 yield json.loads(line)
-            except json.decoder.JSONDecodeError:
-                pass
 
 
 def default_parse_example_fn(ex: Dict) -> str:
@@ -166,14 +164,19 @@ class DSIR():
             shard_idx = args['shard_idx']
             num_shards = args['num_shards']
 
-            if Path(in_path).suffix == '.jsonl':
-                # faster to not load json into dicts
+            if self.raw_load_dataset_fn.__name__ == 'default_load_dataset_fn':
+                # faster to not load json lines into dicts
+                curr_idx = 0
                 with open(out_path, 'w') as f:
                     with open(in_path, 'r') as f_in:
                         iterator = _iterate_virtually_sharded_dataset(f_in, num_shards, shard_idx)
-                        for i, line in tqdm(enumerate(iterator), miniters=10000, maxinterval=1000000):
-                            if mask[i]:
+                        for line in tqdm(iterator, miniters=10000, maxinterval=1000000):
+                            if len(line) == 0:
+                                continue
+
+                            if mask[curr_idx]:
                                 f.write(line.strip() + '\n')
+                            curr_idx += 1
             else:
                 dataset = self.raw_load_dataset_fn(in_path)
 
@@ -181,7 +184,7 @@ class DSIR():
                     iterator = _iterate_virtually_sharded_dataset(dataset, num_shards, shard_idx)
                     for i, ex in tqdm(enumerate(iterator), miniters=10000, maxinterval=1000000):
                         if mask[i]:
-                            f.write(dumps(ex) + '\n')
+                            f.write(json.dumps(ex) + '\n')
 
         sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
         args = [{'out_path': cache_dir / f"{i}.jsonl",
