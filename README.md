@@ -10,7 +10,7 @@ DSIR is built for:
 
 Compute needed:
 - 1 CPU node
-- a decent amount of RAM (at least 64GB - need to hold 2 floats per example in memory)
+- a decent amount of RAM (at least 64GB for most large datasets - need to hold a few floats per example in memory)
 - a high number of cores. The data selection speed scales linearly with the CPU cores.
 
 ![DSIR figure](fig1.png)
@@ -42,7 +42,7 @@ dsir.fit_importance_estimator(num_tokens_to_fit='auto')
 dsir.compute_importance_weights()
 dsir.resample(out_dir='resampled', num_to_sample=1000000, cache_dir='/scr/resampled_cache')
 ```
-Running this would write 1M rows in `jsonl` files inside an output directory named `resampled`. The files will first be written to `cache_dir` and moved to `out_dir` upon completion. For best performance, use uncompressed `jsonl` files for all data paths and use as many CPU cores as possible, which allows each file to be virtually sharded across multiple cores. Custom functions for reading the data paths and extracting the text field from each example can be provided via the
+Running this would write 1M rows in `jsonl` files inside an output directory named `resampled`. The files will first be written to `cache_dir` and moved to `out_dir` upon completion (set `cache_dir` to `None` to skip this step). For best performance, use uncompressed `jsonl` files stored on local file storage for all data paths and use as many CPU cores as possible, which allows each file to be virtually sharded across multiple cores. Custom functions for reading the data paths and extracting the text field from each example can be provided via the
 `{raw,target}_load_dataset_fn` and `{raw,target}_parse_example_fn` arguments to the constructor. The number of tokens to use for fitting the importance weight estimator can be tuned with the `num_tokens_to_fit` argument (set to `all` to fit on full dataset).
 
 For target datasets with a mixture of code and natural language, consider splitting up the code and natural language into separate target distributions (and resampling once with respect to each target) for best performance.
@@ -55,6 +55,18 @@ dsir.save('dsir_params')
 dsir.load('dsir_params')
 dsir.resample(out_dir='resampled', num_to_sample=10000000, cache_dir='/scr/resampled_cache')
 ```
+
+## Speed benchmark on The Pile
+Using 1 CPU node with 96GB RAM and 96 cores, we can select data from the full (decompressed) Pile dataset in less than *4.5 hours*.
+The Pile dataset was first decompressed and placed onto the node's local file storage. The breakdown of timings for each step are:
+- *Fit importance estimator* (with `num_tokens_to_fit="auto"`): 59.28 seconds
+- *Compute importance weights*: 4.36 hours
+- *Resample 10M documents*: 353.68 seconds
+- *Total*: 4.47 hours
+
+Subsequent resampling with the same target data is very cheap, and the runtime does not scale with the number of documents to select (unlike retrieval). Resampling 100M documents takes the same amount of time (less than *6 minutes*) as resampling 10M documents:
+- *Resample 10M documents*: 353.68 seconds
+- *Resample 100M documents*: 352.69 seconds
 
 ## Pre-filtered datasets
 Note: previous versions of the datasets had a small validation and test split (50000 examples each), but we concatenated these onto the end of the train set (in the order validation, then test) to better align with the paper. The datasets should be further shuffled during preprocessing before training.
