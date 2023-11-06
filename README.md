@@ -1,6 +1,7 @@
 # Data Selection for Language Models via Importance Resampling (DSIR)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![arXiv](https://img.shields.io/badge/arXiv-2305.10429-00ff00.svg)](https://arxiv.org/abs/2302.03169)
+[![PyPI version](https://badge.fury.io/py/data-selection.svg)](https://badge.fury.io/py/data-selection)
 
 This repository contains the [DSIR](https://arxiv.org/abs/2302.03169) data selection tool for selecting relevant language model training data from any raw data source given a target dataset, as well as pre-filtered datasets and some pretrained models.
 
