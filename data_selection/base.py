@@ -71,7 +71,7 @@ class DSIR():
         self.raw_load_dataset_fn = raw_load_dataset_fn
         self.target_parse_example_fn = target_parse_example_fn
         self.target_load_dataset_fn = target_load_dataset_fn
-        self.cache_dir = cache_dir
+        self.cache_dir = Path(cache_dir)
         if num_proc is None:
             try:
                 # doesn't work on some systems
@@ -80,9 +80,9 @@ class DSIR():
                 self.num_proc = mp.cpu_count()
         else:
             self.num_proc = num_proc
-        self.log_importance_weights_dir = Path(cache_dir) / 'log_importance_weights'
+        self.log_importance_weights_dir = self.cache_dir / 'log_importance_weights'
         self.log_importance_weights_dir.mkdir(parents=True, exist_ok=True)
-        self.perexample_metadata_dir = Path(cache_dir) / 'perexample_metadata'
+        self.perexample_metadata_dir = self.cache_dir / 'perexample_metadata'
 
     def _get_virtually_sharded_datasets(self, datasets: List[str]):
         """Return virtual shard parameters."""
