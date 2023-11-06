@@ -59,6 +59,13 @@ def test_virtual_shards(dsir_obj):
     assert len(dsir_obj._get_virtually_sharded_datasets(raw_datasets)) == 2
 
 
+def test_length_metadata(dsir_obj):
+    text = "Alice walked into the store\n\n()()($#%@?)@(#(*"
+    length = len(dsir_obj.tokenizer(text))
+    feats = dsir_obj.featurizer(text)
+    assert length == dsir_obj.get_perexample_metadata(ex=None, features=feats)
+
+
 def test_fit(dsir_obj):
     dsir_obj.fit_importance_estimator(num_tokens_to_fit='all')
 
@@ -132,6 +139,8 @@ def test_resample(dsir_obj):
     for line in all_lines:
         ex = json.loads(line)
         assert ex['id'] == 0
+        length = len(dsir_obj.tokenizer(dsir_obj.raw_parse_example_fn(ex)))
+        assert length >= dsir_obj.min_example_length
 
     shutil.rmtree('/tmp/resampled')
     if Path('/tmp/resampled_cache').exists():
@@ -171,6 +180,8 @@ def test_resample_virtual_sharding():
     for line in all_lines:
         ex = json.loads(line)
         assert ex['id'] == 0
+        length = len(dsir_obj.tokenizer(dsir_obj.raw_parse_example_fn(ex)))
+        assert length >= dsir_obj.min_example_length
 
     shutil.rmtree('/tmp/resampled_virtual')
     if Path('/tmp/resampled_virtual').exists():

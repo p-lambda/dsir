@@ -31,7 +31,7 @@ def get_ngram_counts(line: str,
                      n: int = 2,
                      num_buckets: int = 10000,
                      counts: Optional[np.ndarray] = None,
-                     tokenizer: Callable = word_tokenize) -> np.ndarray:
+                     tokenizer: Callable = wpt.tokenize) -> np.ndarray:
     '''Return ngram count features given a string.
 
     Args:
@@ -68,7 +68,8 @@ class HashedNgramDSIR(DSIR):
                  num_proc: Optional[int] = None,
                  ngrams: int = 2,
                  num_buckets: int = 10000,
-                 tokenizer: str = 'wordpunct') -> None:
+                 tokenizer: str = 'wordpunct',
+                 min_example_length: int = 100) -> None:
         '''Initialize the HashedNgramDSIR object.
 
         Args:
@@ -82,6 +83,7 @@ class HashedNgramDSIR(DSIR):
             ngrams: N in N-grams. 2 means both unigram and bigrams.
             num_buckets: number of buckets to hash ngrams into.
             tokenizer: word_tokenize or wordpunct
+            min_example_length: minimum number of tokens in an example to be considered.
         '''
         super().__init__(
                 raw_datasets=raw_datasets,
@@ -100,13 +102,25 @@ class HashedNgramDSIR(DSIR):
             raise ValueError('tokenizer not recognized')
         self.ngrams = ngrams
         self.num_buckets = num_buckets
+        self.min_example_length = min_example_length
         self.raw_probs = None
         self.target_probs = None
         self.log_diff = None
 
-    def importance_estimator(self, text: str) -> float:
-        ngram_feats = get_ngram_counts(text, tokenizer=self.tokenizer)
-        return np.inner(ngram_feats, self.log_diff)
+    def featurizer(self, text: str) -> np.ndarray:
+        return get_ngram_counts(text, tokenizer=self.tokenizer)
+
+    def importance_estimator(self, features: np.ndarray) -> float:
+        return np.inner(features, self.log_diff)
+
+    def get_perexample_metadata(self, ex: Dict, features: np.ndarray) -> int:
+        """Returns the example length."""
+        remainder = self.ngrams * (self.ngrams - 1) / 2
+        return (features.sum() + remainder) // self.ngrams
+
+    def perexample_metadata_filter(self, concat_metadata: np.ndarray) -> np.array:
+        """Filters out short examples."""
+        return concat_metadata >= self.min_example_length
 
     def _fit_bow(self,
                  paths: List[str],
@@ -171,31 +185,6 @@ class HashedNgramDSIR(DSIR):
                 load_dataset_fn=self.target_load_dataset_fn)
 
         self.log_diff = np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)
-
-    def compute_importance_weights(self) -> None:
-        def job(args: Dict):
-            path = args['path']
-            num_shards = args['num_shards']
-            shard_idx = args['shard_idx']
-            overall_idx = args['overall_idx']
-
-            log_importance_weights = []
-
-            dataset = self.raw_load_dataset_fn(path)
-
-            iterator = _iterate_virtually_sharded_dataset(dataset, num_shards, shard_idx)
-            for ex in tqdm(iterator, miniters=10000, maxinterval=1000000):
-                if self.raw_parse_example_fn is not None:
-                    text = self.raw_parse_example_fn(ex)
-                else:
-                    text = ex
-                log_importance_weights.append(self.importance_estimator(text))
-            log_importance_weights = np.asarray(log_importance_weights)
-            save_path = Path(self.log_importance_weights_dir) / f"{overall_idx}.npy"
-            np.save(str(save_path), log_importance_weights)
-
-        sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
-        parallelize(job, sharded_raw_datasets, self.num_proc)
 
     def save(self, path: str):
         super().save(path)

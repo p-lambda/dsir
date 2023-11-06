@@ -82,6 +82,7 @@ class DSIR():
             self.num_proc = num_proc
         self.log_importance_weights_dir = Path(cache_dir) / 'log_importance_weights'
         self.log_importance_weights_dir.mkdir(parents=True, exist_ok=True)
+        self.perexample_metadata_dir = Path(cache_dir) / 'perexample_metadata'
 
     def _get_virtually_sharded_datasets(self, datasets: List[str]):
         """Return virtual shard parameters."""
@@ -102,9 +103,22 @@ class DSIR():
                 overall_idx += 1
         return shard_params
 
-    def importance_estimator(self, text: str) -> float:
-        """Takes text and outputs an importance weight."""
+    def featurizer(self, text: str) -> np.ndarray:
+        """Takes a string and outputs a feature vector."""
         raise NotImplementedError
+
+    def importance_estimator(self, features: np.ndarray) -> float:
+        """Takes a feature vector and outputs an importance weight."""
+        raise NotImplementedError
+
+    def get_perexample_metadata(self, ex: Dict, features: np.ndarray) -> np.ndarray:
+        """Get per-example metadata.
+
+        Args:
+            ex: example dict
+            features: feature vector
+        """
+        return NotImplementedError
 
     def fit_importance_estimator(self) -> None:
         """Fits parameters needed to run self.importance_estimator.
@@ -114,8 +128,50 @@ class DSIR():
         raise NotImplementedError
 
     def compute_importance_weights(self) -> None:
-        """Compute importance weights on raw dataset with self.importance_estimator. Saves importance weights in self.log_importance_weights_dir / {index}.npy in chunks indexed by index."""
-        raise NotImplementedError
+        """Compute importance weights on raw dataset with self.importance_estimator.
+        Saves importance weights in self.log_importance_weights_dir / {index}.npy in chunks indexed by index.
+        Also saves other per-example metadata (numpy arrays) in self.perexample_metadata_dir / {index}.npy."""
+        def job(args: Dict):
+            path = args['path']
+            num_shards = args['num_shards']
+            shard_idx = args['shard_idx']
+            overall_idx = args['overall_idx']
+
+            log_importance_weights = []
+            perexample_metadata = []
+
+            dataset = self.raw_load_dataset_fn(path)
+
+            iterator = _iterate_virtually_sharded_dataset(dataset, num_shards, shard_idx)
+            for ex in tqdm(iterator, miniters=10000, maxinterval=1000000):
+                if self.raw_parse_example_fn is not None:
+                    text = self.raw_parse_example_fn(ex)
+                else:
+                    text = ex
+                features = self.featurizer(text)
+                log_importance_weights.append(self.importance_estimator(features))
+                if perexample_metadata is not None:
+                    try:
+                        perexample_metadata.append(self.get_perexample_metadata(ex, features))
+                    except NotImplementedError:
+                        perexample_metadata = None
+
+
+            log_importance_weights = np.asarray(log_importance_weights)
+            save_path = Path(self.log_importance_weights_dir) / f"{overall_idx}.npy"
+            np.save(str(save_path), log_importance_weights)
+            if perexample_metadata is not None:
+                self.perexample_metadata_dir.mkdir(parents=True, exist_ok=True)
+                perexample_metadata = np.asarray(perexample_metadata)
+                save_path = Path(self.perexample_metadata_dir) / f"{overall_idx}.npy"
+                np.save(str(save_path), perexample_metadata)
+
+        sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
+        parallelize(job, sharded_raw_datasets, self.num_proc)
+
+    def perexample_metadata_filter(self, concat_metadata: np.ndarray) -> np.array:
+        """Return a boolean array of examples that pass the filter according to the metadata."""
+        return NotImplementedError
 
     def resample(self, out_dir: str, num_to_sample: int, cache_dir: str = None, top_k: bool = False) -> None:
         """Resample raw dataset with self.importance_weights.
@@ -134,19 +190,39 @@ class DSIR():
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
+
+
         log_importance_weights_ls = [
                 np.load(str(Path(self.log_importance_weights_dir) / f'{shard_params["overall_idx"]}.npy'), mmap_mode='r')
                 for shard_params in sharded_raw_datasets]
         concat_log_importance_weights = np.concatenate(log_importance_weights_ls)
 
+        # filter examples by metadata first
+        if Path(self.perexample_metadata_dir).exists():
+            metadata_ls = [
+                    np.load(str(Path(self.perexample_metadata_dir) / f'{shard_params["overall_idx"]}.npy'), mmap_mode='r')
+                    for shard_params in sharded_raw_datasets]
+            concat_metadata = np.concatenate(metadata_ls, axis=0)
+            global_mask = self.perexample_metadata_filter(concat_metadata)
+            del concat_metadata
+        else:
+            global_mask = np.ones(len(concat_log_importance_weights), dtype=bool)
+
+        # apply filter
+        concat_log_importance_weights = concat_log_importance_weights[global_mask]
         # noise the log_importance_weights
         if not top_k:
             concat_log_importance_weights += np.random.gumbel(size=len(concat_log_importance_weights))
+
+        nonzero_idxs = np.where(global_mask)[0]
         chosen_idxs = np.argpartition(-concat_log_importance_weights, num_to_sample)[:num_to_sample]
-        global_mask = np.zeros(len(concat_log_importance_weights), dtype=bool)
+        chosen_idxs = nonzero_idxs[chosen_idxs]
+
+        global_mask = np.zeros(len(global_mask), dtype=bool)
         global_mask[chosen_idxs] = True
 
         del chosen_idxs
+        del nonzero_idxs
         del concat_log_importance_weights
 
         # split the global mask into per-dataset masks
@@ -210,6 +286,8 @@ class DSIR():
                     'raw_load_dataset_fn': self.raw_load_dataset_fn,
                     'target_parse_example_fn': self.target_parse_example_fn,
                     'target_load_dataset_fn': self.target_load_dataset_fn,
+                    'log_importance_weights_dir': self.log_importance_weights_dir,
+                    'perexample_metadata_dir': self.perexample_metadata_dir,
                     'cache_dir': self.cache_dir,
                     }
         # pickle the metadata
