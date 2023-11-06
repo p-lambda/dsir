@@ -31,7 +31,7 @@ pip install ./dsir
 ```
 
 To select data, simply initialize a `HashedNgramDSIR` object and call the following functions:
-```
+```python
 from data_selection import HashedNgramDSIR
 
 raw_datasets = [<list of paths>]
@@ -48,7 +48,7 @@ Running this would write 10M documents in `jsonl` files inside an output directo
 For target datasets with a mixture of code and natural language, consider splitting up the code and natural language into separate target distributions (and resampling once with respect to each target) for best performance.
 
 The `dsir` intermediate results (after `fit_importance_estimator` and `compute_importance_weights`) can be saved and loaded for later use, for example to resample 100M documents instead:
-```
+```python
 dsir.save('dsir_params_dir')
 
 # later on
@@ -80,7 +80,7 @@ Note: previous versions of the datasets had a small validation and test split (5
 - Used for 128-token context models in the paper. Suitable for token length 512 or 1024, but can be used for shorter token lengths.
 - The dataset contains 51.2M examples, most of which are selected from Pile subsets that are not Wikipedia or books-related (BookCorpus2, Books3, Gutenberg). 4% of the data is randomly selected from Wikipedia and books-related subsets. Every example concatenates 2 snippets, possibly from different sources, to ensure that the examples are long enough for longer context models (512 or 1024 tokens). Metadata about which sources the text comes from is included with every example.
 - Available on HuggingFace at https://huggingface.co/datasets/stanford-crfm/DSIR-filtered-pile-50M. Use with HuggingFace Datasets:
-```
+```python
 from datasets import load_dataset
 dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 ```
@@ -93,7 +93,7 @@ dataset = load_dataset("stanford-crfm/DSIR-filtered-pile-50M")
 - Used for 128-token context length models in the paper. Suitable for token length 512 or 1024, but can be used for shorter token lengths
 - The dataset contains 51.2M examples, most of which are selected from Pile subsets that are not Wikipedia or books-related (BookCorpus2, Books3, Gutenberg). 4% of the data is randomly selected from Wikipedia and books-related subsets. Every example concatenates 2 snippets, possibly from different sources, to ensure that the examples are long enough for longer context models (512 or 1024 tokens). Metadata about which sources the text comes from is included with every example.
 - Available on HuggingFace at https://huggingface.co/datasets/stanford-crfm/heuristic_classification-filtered-pile-50M. Use with HuggingFace Datasets:
-```
+```python
 from datasets import load_dataset
 dataset = load_dataset("stanford-crfm/heuristic_classification-filtered-pile-50M")
 ```
