@@ -279,16 +279,24 @@ class DSIR():
     def save(self, path: str) -> None:
         """Save parameters to save computation"""
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'w') as f:
-            pickle.dump(self.__dict__, f)
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
 
-    def load(self, path: str) -> None:
-        """Load saved parameters"""
+    def load(self, path: str, exclude_keys: Optional[List[str]] = None) -> None:
+        """Load saved parameters.
 
-        with open(path, 'r') as f:
-            params = pickle.load(f)
+        Args:
+        path: path to saved parameters
+        exclude_keys: keys to exclude from loading
+        """
 
-        if params.__version__ != self.__version__:
-            raise ValueError(f"Version mismatch: {params.__version__} != {self.__version__}")
-        self.__dict__.update(params)
+        with open(path, 'rb') as f:
+            obj = pickle.load(f)
 
+        if obj.__version__ != self.__version__:
+            raise ValueError(f"Version mismatch: {obj.__version__} != {self.__version__}")
+
+        for k, v in obj.__dict__.items():
+            if exclude_keys is not None and k in exclude_keys:
+                continue
+            setattr(self, k, v)
