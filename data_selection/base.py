@@ -12,6 +12,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from data_selection.utils import parallelize
+from data_selection import __version__
 
 
 def default_load_dataset_fn(path: str) -> Iterable[Dict]:
@@ -45,7 +46,7 @@ def _iterate_virtually_sharded_dataset(dataset: Iterable, num_shards: int, shard
 
 class DSIR():
     """Base class for data selection with importance resampling (DSIR)."""
-    __version__ = '1.0.1'
+    __version__ = __version__
 
     def __init__(self,
                  raw_datasets: List[str],

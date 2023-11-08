@@ -57,7 +57,6 @@ def get_ngram_counts(line: str,
 
 class HashedNgramDSIR(DSIR):
     """DSIR with hashed n-gram features."""
-    __version__ = '1.0.1'
 
     def __init__(self,
                  raw_datasets: List[str],
