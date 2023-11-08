@@ -50,10 +50,10 @@ For target datasets with a mixture of code and natural language, consider splitt
 
 The `dsir` intermediate results (after `fit_importance_estimator` and `compute_importance_weights`) can be saved and loaded for later use, for example to resample 100M documents instead:
 ```python
-dsir.save('dsir_params_dir')
+dsir.save('dsir_params.pkl')
 
 # later on
-dsir.load('dsir_params_dir')
+dsir.load('dsir_params.pkl')
 dsir.resample(out_dir='resampled', num_to_sample=100000000, cache_dir='/scr/resampled_cache')
 ```
 The `save` method can be called at any time to save partial results.

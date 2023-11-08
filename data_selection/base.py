@@ -12,6 +12,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from data_selection.utils import parallelize
+from data_selection import __version__
 
 
 def default_load_dataset_fn(path: str) -> Iterable[Dict]:
@@ -45,6 +46,7 @@ def _iterate_virtually_sharded_dataset(dataset: Iterable, num_shards: int, shard
 
 class DSIR():
     """Base class for data selection with importance resampling (DSIR)."""
+    __version__ = __version__
 
     def __init__(self,
                  raw_datasets: List[str],
@@ -277,31 +279,25 @@ class DSIR():
 
     def save(self, path: str) -> None:
         """Save parameters to save computation"""
-        path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
 
-        metadata = {'raw_datasets': self.raw_datasets,
-                    'target_datasets': self.target_datasets,
-                    'raw_parse_example_fn': self.raw_parse_example_fn,
-                    'raw_load_dataset_fn': self.raw_load_dataset_fn,
-                    'target_parse_example_fn': self.target_parse_example_fn,
-                    'target_load_dataset_fn': self.target_load_dataset_fn,
-                    'log_importance_weights_dir': self.log_importance_weights_dir,
-                    'perexample_metadata_dir': self.perexample_metadata_dir,
-                    'cache_dir': self.cache_dir,
-                    }
-        # pickle the metadata
-        with open(str(path / 'metadata.pkl'), 'wb') as f:
-            pickle.dump(metadata, f)
+    def load(self, path: str, exclude_keys: Optional[List[str]] = None) -> None:
+        """Load saved parameters.
 
-    def load(self, path: str) -> None:
-        """Load saved parameters"""
-        path = Path(path)
+        Args:
+        path: path to saved parameters
+        exclude_keys: keys to exclude from loading
+        """
 
-        metadata_path = path / 'metadata.pkl'
-        with open(str(metadata_path), 'rb') as f:
-            metadata = pickle.load(f)
+        with open(path, 'rb') as f:
+            obj = pickle.load(f)
 
-        for k, v in metadata.items():
+        if obj.__version__ != self.__version__:
+            raise ValueError(f"Version mismatch: {obj.__version__} != {self.__version__}")
+
+        for k, v in obj.__dict__.items():
+            if exclude_keys is not None and k in exclude_keys:
+                continue
             setattr(self, k, v)
-

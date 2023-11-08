@@ -194,10 +194,18 @@ def test_save_load(dsir_obj):
 
     dsir_obj.compute_importance_weights()
 
-    dsir_obj.save('/tmp/dsir')
+    dsir_obj.save('/tmp/dsir.pkl')
 
     dsir_obj_2 = HashedNgramDSIR([], [], 'cache')
-    dsir_obj_2.load('/tmp/dsir')
+    dsir_obj_2.load('/tmp/dsir.pkl', exclude_keys=['raw_datasets', 'target_datasets', 'cache_dir'])
+    assert np.allclose(dsir_obj_2.raw_probs, dsir_obj.raw_probs)
+    assert np.allclose(dsir_obj_2.target_probs, dsir_obj.target_probs)
+    assert np.allclose(dsir_obj_2.log_diff, dsir_obj.log_diff)
+    assert dsir_obj_2.num_buckets == dsir_obj.num_buckets
+    assert dsir_obj_2.ngrams == dsir_obj.ngrams
+
+    dsir_obj_2 = HashedNgramDSIR([], [], 'cache')
+    dsir_obj_2.load('/tmp/dsir.pkl')
 
     assert np.allclose(dsir_obj_2.raw_probs, dsir_obj.raw_probs)
     assert np.allclose(dsir_obj_2.target_probs, dsir_obj.target_probs)
@@ -207,16 +215,3 @@ def test_save_load(dsir_obj):
     assert dsir_obj_2.target_datasets == dsir_obj.target_datasets
     assert dsir_obj_2.num_buckets == dsir_obj.num_buckets
     assert dsir_obj_2.ngrams == dsir_obj.ngrams
-
-if __name__ == "__main__":
-    dsir = HashedNgramDSIR(
-            raw_datasets,
-            target_datasets,
-            cache_dir='/tmp/dsir_params',
-            raw_parse_example_fn=parse_example_fn,
-            target_parse_example_fn=parse_example_fn,
-            num_proc=2,
-            ngrams=2,
-            num_buckets=10000)
-
-    test_resample(dsir)

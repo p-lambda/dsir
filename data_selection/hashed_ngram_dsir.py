@@ -56,6 +56,7 @@ def get_ngram_counts(line: str,
 
 
 class HashedNgramDSIR(DSIR):
+    """DSIR with hashed n-gram features."""
 
     def __init__(self,
                  raw_datasets: List[str],
@@ -185,45 +186,3 @@ class HashedNgramDSIR(DSIR):
                 load_dataset_fn=self.target_load_dataset_fn)
 
         self.log_diff = np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)
-
-    def save(self, path: str):
-        super().save(path)
-
-        path = Path(path)
-        if self.raw_probs is not None:
-            np.save(str(path / 'raw_probs.npy'), self.raw_probs)
-        if self.target_probs is not None:
-            np.save(str(path / 'target_probs.npy'), self.target_probs)
-        if self.log_diff is not None:
-            np.save(str(path / 'log_diff.npy'), self.log_diff)
-
-        with open(str(path / 'metadata.pkl'), 'rb') as f:
-            metadata = pickle.load(f)
-
-        metadata.update({
-            'num_buckets': self.num_buckets,
-            'ngrams': self.ngrams,
-            'tokenizer': self.tokenizer})
-
-        # pickle the metadata
-        with open(str(path / 'metadata.pkl'), 'wb') as f:
-            pickle.dump(metadata, f)
-
-
-    def load(self, path: str):
-        super().load(path)
-
-        path = Path(path)
-        raw_probs_path = path / 'raw_probs.npy'
-        if raw_probs_path.exists():
-            self.raw_probs = np.load(str(raw_probs_path))
-        target_probs_path = path / 'target_probs.npy'
-        if target_probs_path.exists():
-            self.target_probs = np.load(str(target_probs_path))
-
-        log_diff_path = path / 'log_diff.npy'
-        if log_diff_path.exists():
-            self.log_diff = np.load(str(log_diff_path))
-            assert(
-                np.allclose(self.log_diff, np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)))
-
