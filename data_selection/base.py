@@ -45,6 +45,7 @@ def _iterate_virtually_sharded_dataset(dataset: Iterable, num_shards: int, shard
 
 class DSIR():
     """Base class for data selection with importance resampling (DSIR)."""
+    __version__ = '1.0.1'
 
     def __init__(self,
                  raw_datasets: List[str],
@@ -277,31 +278,17 @@ class DSIR():
 
     def save(self, path: str) -> None:
         """Save parameters to save computation"""
-        path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
-
-        metadata = {'raw_datasets': self.raw_datasets,
-                    'target_datasets': self.target_datasets,
-                    'raw_parse_example_fn': self.raw_parse_example_fn,
-                    'raw_load_dataset_fn': self.raw_load_dataset_fn,
-                    'target_parse_example_fn': self.target_parse_example_fn,
-                    'target_load_dataset_fn': self.target_load_dataset_fn,
-                    'log_importance_weights_dir': self.log_importance_weights_dir,
-                    'perexample_metadata_dir': self.perexample_metadata_dir,
-                    'cache_dir': self.cache_dir,
-                    }
-        # pickle the metadata
-        with open(str(path / 'metadata.pkl'), 'wb') as f:
-            pickle.dump(metadata, f)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w') as f:
+            pickle.dump(self.__dict__, f)
 
     def load(self, path: str) -> None:
         """Load saved parameters"""
-        path = Path(path)
 
-        metadata_path = path / 'metadata.pkl'
-        with open(str(metadata_path), 'rb') as f:
-            metadata = pickle.load(f)
+        with open(path, 'r') as f:
+            params = pickle.load(f)
 
-        for k, v in metadata.items():
-            setattr(self, k, v)
+        if params.__version__ != self.__version__:
+            raise ValueError(f"Version mismatch: {params.__version__} != {self.__version__}")
+        self.__dict__.update(params)
 
