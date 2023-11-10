@@ -243,7 +243,7 @@ def test_save_load(dsir_obj):
 
     dsir_obj.save('/tmp/dsir.pkl')
 
-    dsir_obj_2 = HashedNgramDSIR([], [], 'cache')
+    dsir_obj_2 = HashedNgramDSIR([], [], '/tmp/cache')
     dsir_obj_2.load('/tmp/dsir.pkl', exclude_keys=['raw_datasets', 'target_datasets', 'cache_dir'])
     assert np.allclose(dsir_obj_2.raw_probs, dsir_obj.raw_probs)
     assert np.allclose(dsir_obj_2.target_probs, dsir_obj.target_probs)
@@ -251,7 +251,7 @@ def test_save_load(dsir_obj):
     assert dsir_obj_2.num_buckets == dsir_obj.num_buckets
     assert dsir_obj_2.ngrams == dsir_obj.ngrams
 
-    dsir_obj_2 = HashedNgramDSIR([], [], 'cache')
+    dsir_obj_2 = HashedNgramDSIR([], [], '/tmp/cache')
     dsir_obj_2.load('/tmp/dsir.pkl')
 
     assert np.allclose(dsir_obj_2.raw_probs, dsir_obj.raw_probs)
