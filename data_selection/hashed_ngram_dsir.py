@@ -109,7 +109,7 @@ class HashedNgramDSIR(DSIR):
         self.log_diff = None
 
     def featurizer(self, text: str) -> np.ndarray:
-        return get_ngram_counts(text, tokenizer=self.tokenizer)
+        return get_ngram_counts(text, tokenizer=self.tokenizer, num_buckets=self.num_buckets, n=self.ngrams)
 
     def importance_estimator(self, features: np.ndarray) -> float:
         return np.inner(features, self.log_diff)

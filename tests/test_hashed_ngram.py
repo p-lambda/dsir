@@ -33,6 +33,25 @@ def dsir_obj():
     if Path('/tmp/dsir_params').exists():
         shutil.rmtree('/tmp/dsir_params')
 
+
+@pytest.fixture
+def dsir_obj_diffparams():
+    dsir = HashedNgramDSIR(
+            raw_datasets=raw_datasets,
+            target_datasets=target_datasets,
+            cache_dir='/tmp/dsir_params',
+            raw_parse_example_fn=parse_example_fn,
+            target_parse_example_fn=parse_example_fn,
+            num_proc=2,
+            ngrams=3,
+            num_buckets=50000)
+
+    yield dsir
+
+    if Path('/tmp/dsir_params').exists():
+        shutil.rmtree('/tmp/dsir_params')
+
+
 def test_hash_buckets():
     bucket = hash_buckets('alice')
     bucket_2 = hash_buckets('alice went')
@@ -117,7 +136,6 @@ def test_compute(dsir_obj):
     assert len(log_importance_weights) == len(raw_datasets)
     assert log_importance_weights[0].shape == (1000,)
 
-
 def test_resample(dsir_obj):
     dsir_obj.fit_importance_estimator()
 
@@ -145,6 +163,35 @@ def test_resample(dsir_obj):
     shutil.rmtree('/tmp/resampled')
     if Path('/tmp/resampled_cache').exists():
         shutil.rmtree('/tmp/resampled_cache')
+
+def test_resample_diffparams(dsir_obj_diffparams):
+    dsir_obj_diffparams.fit_importance_estimator()
+
+    dsir_obj_diffparams.compute_importance_weights()
+
+    dsir_obj_diffparams.resample(out_dir='/tmp/resampled', num_to_sample=2, cache_dir='/tmp/resampled_cache')
+
+    assert Path('/tmp/resampled').exists()
+    assert not Path('/tmp/resampled_cache').exists()
+
+    all_lines = []
+    for i in range(2):
+        with open(f'/tmp/resampled/{i}.jsonl', 'r') as f:
+            lines = f.readlines()
+            all_lines += lines
+
+    assert len(all_lines) == 2
+
+    for line in all_lines:
+        ex = json.loads(line)
+        assert ex['id'] == 0
+        length = len(dsir_obj_diffparams.tokenizer(dsir_obj_diffparams.raw_parse_example_fn(ex)))
+        assert length >= dsir_obj_diffparams.min_example_length
+
+    shutil.rmtree('/tmp/resampled')
+    if Path('/tmp/resampled_cache').exists():
+        shutil.rmtree('/tmp/resampled_cache')
+
 
 
 def test_resample_virtual_sharding():
