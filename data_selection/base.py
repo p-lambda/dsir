@@ -186,7 +186,7 @@ class DSIR():
         return NotImplementedError
 
     def resample(self, out_dir: str, num_to_sample: int, cache_dir: str = None, top_k: bool = False) -> None:
-        """Resample raw dataset with self.importance_weights.
+        """Resample raw dataset according to importance weights.
 
         Args:
             out_dir (str): path to save resampled dataset

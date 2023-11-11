@@ -168,7 +168,6 @@ class HashedNgramDSIR(DSIR):
     def fit_importance_estimator(self, num_tokens_to_fit: Union[str, int] = 'auto') -> None:
         '''Fit the importance estimator.
         Args:
-            target_datasets: List of paths to jsonl-like files loadable by HuggingFace's load_dataset function.
             num_tokens_to_fit: number of tokens to fit the raw dataset importance estimator on.
                                Set to "all" to fit on all tokens, and "auto" to determine
                                the number of tokens to fit on automatically (100k * num_buckets).
