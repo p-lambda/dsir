@@ -118,6 +118,8 @@ dsir = HashedNgramDSIR(
         raw_datasets=raw_datasets,
         target_datasets=target_datasets,
         cache_dir='/path/to/dsir_cache',
+        target_parse_example_fn=target_parse_example_fn,
+        target_load_dataset_fn=target_load_dataset_fn,
         separate_targets=True)
 dsir.fit_importance_estimator(num_tokens_to_fit='auto')
 dsir.compute_importance_weights()
