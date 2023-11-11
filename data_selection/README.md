@@ -13,7 +13,7 @@ Base class for DSIR.
 - `target_parse_example_fn`: a function that takes in an example dict and outputs a string
 - `num_proc`: num cpus to parallelize over. If None, use all available cpus.
 - `separate_targets`: whether to select data separately for each target and then join them. For example, when including two target datasets, one natural language dataset and one code, the most heavily upweighted data when `separate_targets=False` may skew towards documents with a mix of natural language and code, such as StackExchange. When `separate_targets=True`, two separate DSIR runs will occur in parallel, selecting a mixture of documents using each target
-- `target_proportions`: weighting across multiple targets if separate_targets=True. Set to None to weight by the size of each target dataset
+- `target_proportions`: weighting across multiple targets if separate_targets=True. The proportions are on the document level. Set to None to weight by the size (in tokens) of each target dataset.
 
 #### compute_importance_weights(self) -> None:
 Compute importance weights on raw dataset with self.importance_estimator.
@@ -43,7 +43,7 @@ The main subclass we provide is DSIR with hashed n-gram features. This choice of
 - `tokenizer`: word_tokenize or wordpunct
 - `min_example_length`: minimum number of tokens in an example to be considered.
 - `separate_targets`: whether to select data separately for each target and then join them. For example, when including two target datasets, one natural language dataset and one code, the most heavily upweighted data when `separate_targets=False` may skew towards documents with a mix of natural language and code, such as StackExchange. When `separate_targets=True`, two separate DSIR runs will occur in parallel, selecting a mixture of documents using each target according to `target_proportions`.
-- `target_proportions`: weighting across multiple targets if separate_targets=True. Set to None to weight by the size in tokens of each target dataset
+- `target_proportions`: weighting across multiple targets if separate_targets=True. The proportions are on the document level. Set to None to weight by the size in tokens of each target dataset
 
 #### fit_importance_estimator(self, num_tokens_to_fit: Union[str, int] = 'auto') -> None:
 Fit the importance estimator.
