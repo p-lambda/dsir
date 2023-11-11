@@ -70,7 +70,9 @@ class HashedNgramDSIR(DSIR):
                  ngrams: int = 2,
                  num_buckets: int = 10000,
                  tokenizer: str = 'wordpunct',
-                 min_example_length: int = 100) -> None:
+                 min_example_length: int = 100,
+                 separate_targets: bool = False,
+                 target_proportions: Optional[List[float]] = None) -> None:
         '''Initialize the HashedNgramDSIR object.
 
         Args:
@@ -85,6 +87,8 @@ class HashedNgramDSIR(DSIR):
             num_buckets: number of buckets to hash ngrams into.
             tokenizer: word_tokenize or wordpunct
             min_example_length: minimum number of tokens in an example to be considered.
+            separate_targets: whether to select data separately for each target and then join them
+            target_proportions: weighting across multiple targets if separate_targets=True. Set to None to weight by the size of each target dataset
         '''
         super().__init__(
                 raw_datasets=raw_datasets,
@@ -94,7 +98,9 @@ class HashedNgramDSIR(DSIR):
                 raw_parse_example_fn=raw_parse_example_fn,
                 target_load_dataset_fn=target_load_dataset_fn,
                 target_parse_example_fn=target_parse_example_fn,
-                num_proc=num_proc)
+                num_proc=num_proc,
+                separate_targets=separate_targets,
+                target_proportions=target_proportions)
         if tokenizer == 'word_tokenize':
             self.tokenizer = word_tokenize
         elif tokenizer == 'wordpunct':
@@ -111,8 +117,8 @@ class HashedNgramDSIR(DSIR):
     def featurizer(self, text: str) -> np.ndarray:
         return get_ngram_counts(text, tokenizer=self.tokenizer, num_buckets=self.num_buckets, n=self.ngrams)
 
-    def importance_estimator(self, features: np.ndarray) -> float:
-        return np.inner(features, self.log_diff)
+    def importance_estimator(self, features: np.ndarray) -> Union[float, np.ndarray]:
+        return np.dot(self.log_diff, features)
 
     def get_perexample_metadata(self, ex: Dict, features: np.ndarray) -> int:
         """Returns the example length."""
@@ -157,7 +163,6 @@ class HashedNgramDSIR(DSIR):
         all_counts = parallelize(job, sharded_datasets, self.num_proc)
         counts = sum(all_counts)
 
-        counts = counts / counts.sum()
         return counts
 
     def fit_importance_estimator(self, num_tokens_to_fit: Union[str, int] = 'auto') -> None:
@@ -179,10 +184,33 @@ class HashedNgramDSIR(DSIR):
                 num_tokens_to_fit=num_tokens_to_fit,
                 parse_example_fn=self.raw_parse_example_fn,
                 load_dataset_fn=self.raw_load_dataset_fn)
-        self.target_probs = self._fit_bow(
-                self.target_datasets,
-                num_tokens_to_fit=None,  # fit on all tokens for target
-                parse_example_fn=self.target_parse_example_fn,
-                load_dataset_fn=self.target_load_dataset_fn)
+        self.raw_probs = self.raw_probs / self.raw_probs.sum()
+
+        if self.separate_targets:
+            target_probs = []
+            target_proportions = []
+
+            for target_dataset in self.target_datasets:
+                curr_target_probs = self._fit_bow(
+                        [target_dataset],
+                        num_tokens_to_fit=num_tokens_to_fit,
+                        parse_example_fn=self.target_parse_example_fn,
+                        load_dataset_fn=self.target_load_dataset_fn)
+                target_proportions.append(curr_target_probs.sum())
+                curr_target_probs = curr_target_probs / curr_target_probs.sum()
+                target_probs.append(curr_target_probs)
+            target_proportions = np.asarray(target_proportions)
+            if self.target_proportions is None:
+                self.target_proportions = target_proportions / target_proportions.sum()
+
+            self.target_probs = np.asarray(target_probs)
+
+        else:
+            self.target_probs = self._fit_bow(
+                    self.target_datasets,
+                    num_tokens_to_fit=None,  # fit on all tokens for target
+                    parse_example_fn=self.target_parse_example_fn,
+                    load_dataset_fn=self.target_load_dataset_fn)
+            self.target_probs = self.target_probs / self.target_probs.sum()
 
         self.log_diff = np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)
