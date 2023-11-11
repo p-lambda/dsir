@@ -19,7 +19,6 @@ if __name__ == "__main__":
           packages=['data_selection'],
           install_requires=[
             'numpy>=1.21.6',
-            'datasets>=2.13.2',
             'tqdm>=4.62.3',
             'joblib>=1.1.0',
             'nltk>=3.8.1',

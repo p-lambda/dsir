@@ -95,6 +95,7 @@ dsir.resample(out_dir='/path/to/out_dir', num_to_sample=10000000, cache_dir='/pa
 HuggingFace datasets can also be used in either `raw_datasets` or `target_datasets` (note: streaming a large raw dataset directly will be very slow - we recommend this more for target datasets):
 ```python
 from data_selection import HashedNgramDSIR
+from datasets import load_dataset
 
 subsets = [str(i).zfill(2) for i in range(0, 30)]
 

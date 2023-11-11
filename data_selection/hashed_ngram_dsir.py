@@ -1,9 +1,5 @@
-from pathlib import Path
-import shutil
 from typing import List, Optional, Dict, Callable, Union, Iterable
-from json import dumps, loads
 import hashlib
-import pickle
 from tqdm import tqdm
 from nltk.tokenize import WordPunctTokenizer
 from nltk.tokenize import word_tokenize
@@ -136,6 +132,7 @@ class HashedNgramDSIR(DSIR):
                  parse_example_fn: Callable[[Dict], str] = default_parse_example_fn) -> np.ndarray:
 
         sharded_datasets = self._get_virtually_sharded_datasets(paths)
+
         def job(args: Dict):
             path = args['path']
             num_shards = args['num_shards']

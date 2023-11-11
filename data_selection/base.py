@@ -8,7 +8,6 @@ import pickle
 import json
 
 import numpy as np
-from datasets import load_dataset
 from tqdm import tqdm
 
 from data_selection.utils import parallelize
@@ -34,7 +33,6 @@ def default_parse_example_fn(ex: Dict) -> str:
         ex (Dict): example dict
     """
     return ex['text']
-
 
 
 def _iterate_virtually_sharded_dataset(dataset: Iterable, num_shards: int, shard_idx: int):
@@ -94,7 +92,6 @@ class DSIR():
         self.target_proportions = target_proportions
         if self.target_proportions is not None:
             self.target_proportions = np.asarray(self.target_proportions) / np.sum(self.target_proportions)
-
 
     def _get_virtually_sharded_datasets(self, datasets: List[str]):
         """Return virtual shard parameters."""
@@ -167,7 +164,6 @@ class DSIR():
                         perexample_metadata.append(self.get_perexample_metadata(ex, features))
                     except NotImplementedError:
                         perexample_metadata = None
-
 
             log_importance_weights = np.asarray(log_importance_weights)
             save_path = Path(self.log_importance_weights_dir) / f"{overall_idx}.npy"
