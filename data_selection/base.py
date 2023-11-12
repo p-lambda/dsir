@@ -1,6 +1,6 @@
 # base DSIR class
 import os
-from typing import List, Optional, Dict, Callable, Iterable
+from typing import List, Optional, Dict, Callable, Iterable, Union
 import multiprocessing as mp
 from pathlib import Path
 import shutil
@@ -8,7 +8,6 @@ import pickle
 import json
 
 import numpy as np
-from datasets import load_dataset
 from tqdm import tqdm
 
 from data_selection.utils import parallelize
@@ -36,7 +35,6 @@ def default_parse_example_fn(ex: Dict) -> str:
     return ex['text']
 
 
-
 def _iterate_virtually_sharded_dataset(dataset: Iterable, num_shards: int, shard_idx: int):
     for i, ex in enumerate(dataset):
         if i % num_shards == shard_idx:
@@ -56,16 +54,21 @@ class DSIR():
                  raw_parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
                  target_load_dataset_fn: Callable[[str], Iterable[Dict]] = default_load_dataset_fn,
                  target_parse_example_fn: Callable[[Dict], str] = default_parse_example_fn,
-                 num_proc: Optional[int] = None):
+                 num_proc: Optional[int] = None,
+                 separate_targets: bool = False,
+                 target_proportions: Optional[List[float]] = None) -> None:
         """
         Args:
             raw_datasets: List of data paths
             target_datasets: List of data paths
+            cache_dir: Directory to store cached intermediates (log importance weights)
             raw_load_dataset_fn: Function to load raw dataset from path
             raw_parse_example_fn: a function that takes in an example dict and outputs a string
             target_load_dataset_fn: Function to load target dataset from path
             target_parse_example_fn: a function that takes in an example dict and outputs a string
             num_proc: num cpus to parallelize over. If None, use all available cpus.
+            separate_targets: whether to select data separately for each target and then join them
+            target_proportions: weighting across multiple targets if separate_targets=True. Set to None to weight by the size of each target dataset
         """
         self.raw_datasets = raw_datasets
         self.target_datasets = target_datasets
@@ -85,6 +88,10 @@ class DSIR():
         self.log_importance_weights_dir = self.cache_dir / 'log_importance_weights'
         self.log_importance_weights_dir.mkdir(parents=True, exist_ok=True)
         self.perexample_metadata_dir = self.cache_dir / 'perexample_metadata'
+        self.separate_targets = separate_targets
+        self.target_proportions = target_proportions
+        if self.target_proportions is not None:
+            self.target_proportions = np.asarray(self.target_proportions) / np.sum(self.target_proportions)
 
     def _get_virtually_sharded_datasets(self, datasets: List[str]):
         """Return virtual shard parameters."""
@@ -109,7 +116,7 @@ class DSIR():
         """Takes a string and outputs a feature vector."""
         raise NotImplementedError
 
-    def importance_estimator(self, features: np.ndarray) -> float:
+    def importance_estimator(self, features: np.ndarray) -> Union[float, np.ndarray]:
         """Takes a feature vector and outputs an importance weight."""
         raise NotImplementedError
 
@@ -158,7 +165,6 @@ class DSIR():
                     except NotImplementedError:
                         perexample_metadata = None
 
-
             log_importance_weights = np.asarray(log_importance_weights)
             save_path = Path(self.log_importance_weights_dir) / f"{overall_idx}.npy"
             np.save(str(save_path), log_importance_weights)
@@ -176,7 +182,7 @@ class DSIR():
         return NotImplementedError
 
     def resample(self, out_dir: str, num_to_sample: int, cache_dir: str = None, top_k: bool = False) -> None:
-        """Resample raw dataset with self.importance_weights.
+        """Resample raw dataset according to importance weights.
 
         Args:
             out_dir (str): path to save resampled dataset
@@ -193,11 +199,11 @@ class DSIR():
 
         sharded_raw_datasets = self._get_virtually_sharded_datasets(self.raw_datasets)
 
-
+        # load log importance weights
         log_importance_weights_ls = [
                 np.load(str(Path(self.log_importance_weights_dir) / f'{shard_params["overall_idx"]}.npy'), mmap_mode='r')
                 for shard_params in sharded_raw_datasets]
-        concat_log_importance_weights = np.concatenate(log_importance_weights_ls)
+        concat_log_importance_weights = np.concatenate(log_importance_weights_ls, axis=0)
 
         # filter examples by metadata first
         if Path(self.perexample_metadata_dir).exists():
@@ -210,29 +216,46 @@ class DSIR():
         else:
             global_mask = np.ones(len(concat_log_importance_weights), dtype=bool)
 
-        # apply filter
-        concat_log_importance_weights = concat_log_importance_weights[global_mask]
-        # noise the log_importance_weights
-        if not top_k:
-            concat_log_importance_weights += np.random.gumbel(size=len(concat_log_importance_weights))
+        if self.separate_targets:
+            # determine how many to sample per target
+            num_to_sample_pertarget = [int(num_to_sample * p) for p in self.target_proportions]
+            num_to_sample_pertarget[-1] += num_to_sample - sum(num_to_sample_pertarget)
+        else:
+            num_to_sample_pertarget = [num_to_sample]
+            concat_log_importance_weights = concat_log_importance_weights[:, np.newaxis]
 
-        nonzero_idxs = np.where(global_mask)[0]
-        chosen_idxs = np.argpartition(-concat_log_importance_weights, num_to_sample)[:num_to_sample]
-        chosen_idxs = nonzero_idxs[chosen_idxs]
+        chosen_mask = np.zeros(len(concat_log_importance_weights), dtype=bool)
 
-        global_mask = np.zeros(len(global_mask), dtype=bool)
-        global_mask[chosen_idxs] = True
+        for i, curr_num_to_sample in enumerate(num_to_sample_pertarget):
+            if curr_num_to_sample == 0:
+                continue
+            curr_log_importance_weights = concat_log_importance_weights[:, i]
+            # apply filter
+            curr_log_importance_weights = curr_log_importance_weights[global_mask]
+            # noise the log_importance_weights (Gumbel top-k for sampling without replacement)
+            if not top_k:
+                curr_log_importance_weights += np.random.gumbel(size=curr_log_importance_weights.shape)
+
+            # Take top-k
+            nonzero_idxs = np.where(global_mask)[0]
+            chosen_idxs = np.argpartition(-curr_log_importance_weights, curr_num_to_sample)[:curr_num_to_sample]
+            chosen_idxs = nonzero_idxs[chosen_idxs]
+
+            chosen_mask[chosen_idxs] = True
+            # don't choose these examples again
+            global_mask[chosen_idxs] = False
 
         del chosen_idxs
         del nonzero_idxs
         del concat_log_importance_weights
+        del global_mask
 
         # split the global mask into per-dataset masks
         masks = []
         start_idx = 0
         for log_importance_weights in log_importance_weights_ls:
             end_idx = start_idx + len(log_importance_weights)
-            masks.append(global_mask[start_idx:end_idx])
+            masks.append(chosen_mask[start_idx:end_idx])
             start_idx = end_idx
 
         def job(args: Dict):

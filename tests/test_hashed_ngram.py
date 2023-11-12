@@ -10,6 +10,7 @@ from data_selection.hashed_ngram_dsir import HashedNgramDSIR, hash_buckets, get_
 toy_dataset = Path(__file__).parent / "toy_pile_data.jsonl"
 raw_datasets = [str(toy_dataset)] * 2
 target_datasets = [str(Path(__file__).parent / "toy_target_data.jsonl")]
+separated_target_datasets = [str(Path(__file__).parent / "toy_target_data.jsonl"), str(Path(__file__).parent / "toy_target_data_2.jsonl")]
 
 
 def parse_example_fn(ex):
@@ -45,6 +46,26 @@ def dsir_obj_diffparams():
             num_proc=2,
             ngrams=3,
             num_buckets=50000)
+
+    yield dsir
+
+    if Path('/tmp/dsir_params').exists():
+        shutil.rmtree('/tmp/dsir_params')
+
+
+@pytest.fixture
+def dsir_obj_septarget():
+    dsir = HashedNgramDSIR(
+            raw_datasets=raw_datasets,
+            target_datasets=separated_target_datasets,
+            cache_dir='/tmp/dsir_params',
+            raw_parse_example_fn=parse_example_fn,
+            target_parse_example_fn=parse_example_fn,
+            num_proc=2,
+            ngrams=2,
+            num_buckets=10000,
+            separate_targets=True,
+            target_proportions=[0.5, 0.5])
 
     yield dsir
 
@@ -147,7 +168,7 @@ def test_resample(dsir_obj):
     assert not Path('/tmp/resampled_cache').exists()
 
     all_lines = []
-    for i in range(2):
+    for i in range(dsir_obj.num_proc):
         with open(f'/tmp/resampled/{i}.jsonl', 'r') as f:
             lines = f.readlines()
             all_lines += lines
@@ -165,17 +186,18 @@ def test_resample(dsir_obj):
         shutil.rmtree('/tmp/resampled_cache')
 
 def test_resample_diffparams(dsir_obj_diffparams):
-    dsir_obj_diffparams.fit_importance_estimator()
+    dsir_obj = dsir_obj_diffparams
+    dsir_obj.fit_importance_estimator()
 
-    dsir_obj_diffparams.compute_importance_weights()
+    dsir_obj.compute_importance_weights()
 
-    dsir_obj_diffparams.resample(out_dir='/tmp/resampled', num_to_sample=2, cache_dir='/tmp/resampled_cache')
+    dsir_obj.resample(out_dir='/tmp/resampled', num_to_sample=2, cache_dir='/tmp/resampled_cache')
 
     assert Path('/tmp/resampled').exists()
     assert not Path('/tmp/resampled_cache').exists()
 
     all_lines = []
-    for i in range(2):
+    for i in range(dsir_obj.num_proc):
         with open(f'/tmp/resampled/{i}.jsonl', 'r') as f:
             lines = f.readlines()
             all_lines += lines
@@ -185,13 +207,48 @@ def test_resample_diffparams(dsir_obj_diffparams):
     for line in all_lines:
         ex = json.loads(line)
         assert ex['id'] == 0
-        length = len(dsir_obj_diffparams.tokenizer(dsir_obj_diffparams.raw_parse_example_fn(ex)))
-        assert length >= dsir_obj_diffparams.min_example_length
+        length = len(dsir_obj.tokenizer(dsir_obj.raw_parse_example_fn(ex)))
+        assert length >= dsir_obj.min_example_length
 
     shutil.rmtree('/tmp/resampled')
     if Path('/tmp/resampled_cache').exists():
         shutil.rmtree('/tmp/resampled_cache')
 
+
+def test_resample_septarget(dsir_obj_septarget):
+    dsir_obj = dsir_obj_septarget
+    dsir_obj.fit_importance_estimator()
+
+    dsir_obj.compute_importance_weights()
+
+    dsir_obj.resample(out_dir='/tmp/resampled', num_to_sample=2, cache_dir='/tmp/resampled_cache')
+
+    assert Path('/tmp/resampled').exists()
+    assert not Path('/tmp/resampled_cache').exists()
+    assert np.allclose(dsir_obj.target_proportions - 0.5, 0.0)
+
+    all_lines = []
+    for i in range(dsir_obj.num_proc):
+        with open(f'/tmp/resampled/{i}.jsonl', 'r') as f:
+            lines = f.readlines()
+            all_lines += lines
+
+    assert len(all_lines) == 2
+
+    all_ids = []
+    for line in all_lines:
+        ex = json.loads(line)
+        all_ids.append(ex['id'])
+        length = len(dsir_obj.tokenizer(dsir_obj.raw_parse_example_fn(ex)))
+        assert length >= dsir_obj.min_example_length
+
+    assert len(set(all_ids)) == 2
+    assert min(all_ids) == 0
+    assert max(all_ids) == 2
+
+    shutil.rmtree('/tmp/resampled')
+    if Path('/tmp/resampled_cache').exists():
+        shutil.rmtree('/tmp/resampled_cache')
 
 
 def test_resample_virtual_sharding():
@@ -233,7 +290,6 @@ def test_resample_virtual_sharding():
     shutil.rmtree('/tmp/resampled_virtual')
     if Path('/tmp/resampled_virtual').exists():
         shutil.rmtree('/tmp/resampled_virtual')
-
 
 
 def test_save_load(dsir_obj):

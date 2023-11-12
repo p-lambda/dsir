@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "data-selection"
-version = "1.0.2"
+version = "1.0.3"
 authors = [
   { name="Sang Michael Xie", email="xie@cs.stanford.edu" },
 ]
@@ -21,7 +21,6 @@ license = { file = "LICENSE" }
 keywords = ["data selection", "importance resampling", "dsir", "nlp", "language models"]
 dependencies = [
     'numpy>=1.21.6',
-    'datasets>=2.13.2',
     'tqdm>=4.62.3',
     'joblib>=1.1.0',
     'nltk>=3.8.1',
