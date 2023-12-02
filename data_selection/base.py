@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import pickle
 import json
+import warnings
 
 import numpy as np
 from tqdm import tqdm
@@ -318,7 +319,7 @@ class DSIR():
             obj = pickle.load(f)
 
         if obj.__version__ != self.__version__:
-            raise ValueError(f"Version mismatch: {obj.__version__} != {self.__version__}")
+            raise warnings.warn(f"Version mismatch: Saved version: {obj.__version__} != Current version: {self.__version__}")
 
         for k, v in obj.__dict__.items():
             if exclude_keys is not None and k in exclude_keys:
