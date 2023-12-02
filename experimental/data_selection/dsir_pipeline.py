@@ -196,18 +196,19 @@ def compute_importance_weights(
 
 
 def compute_domain_idxs(filter_domains):
-    ds_path = dsname_to_args['pile']['task_name']
+    # path to outer directory
+    ds_path = Path(dsname_to_args['pile']['task_name'][0]).parent.parent
 
     domain_to_idxs = defaultdict(list)
     todo_domains = []
     for domain in filter_domains:
-        domain_idxs_path = Path(ds_path).parent / f"{domain.replace(' ', '_')}_idxs.npy"
+        domain_idxs_path = ds_path / f"{domain.replace(' ', '_')}_idxs.npy"
         if not domain_idxs_path.exists():
             todo_domains.append(domain)
 
     combined_streaming_ds = load_dataset(
             'json',
-            data_files=ds_path,
+            data_files=dsname_to_args['pile']['task_name'],
             streaming=True)['train']
 
     todo_domains = set(todo_domains)
@@ -217,10 +218,10 @@ def compute_domain_idxs(filter_domains):
             if domain in todo_domains:
                 domain_to_idxs[domain].append(i)
         for domain, idxs in domain_to_idxs.items():
-            np.save(Path(ds_path).parent / f"{domain.replace(' ', '_')}_idxs.npy", np.asarray(idxs))
 
+            np.save(ds_path / f"{domain.replace(' ', '_')}_idxs.npy", np.asarray(idxs))
+        domain_idxs_path = ds_path / f"{domain.replace(' ', '_')}_idxs.npy"
     for domain in filter_domains:
-        domain_idxs_path = Path(ds_path).parent / f"{domain.replace(' ', '_')}_idxs.npy"
         domain_idxs = np.load(domain_idxs_path)
         domain_to_idxs[domain] = domain_idxs
 
