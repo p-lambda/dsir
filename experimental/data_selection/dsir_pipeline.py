@@ -218,10 +218,10 @@ def compute_domain_idxs(filter_domains):
             if domain in todo_domains:
                 domain_to_idxs[domain].append(i)
         for domain, idxs in domain_to_idxs.items():
-
             np.save(ds_path / f"{domain.replace(' ', '_')}_idxs.npy", np.asarray(idxs))
-        domain_idxs_path = ds_path / f"{domain.replace(' ', '_')}_idxs.npy"
+
     for domain in filter_domains:
+        domain_idxs_path = ds_path / f"{domain.replace(' ', '_')}_idxs.npy"
         domain_idxs = np.load(domain_idxs_path)
         domain_to_idxs[domain] = domain_idxs
 
