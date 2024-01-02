@@ -67,6 +67,7 @@ class HashedNgramDSIR(DSIR):
                  num_buckets: int = 10000,
                  tokenizer: str = 'wordpunct',
                  min_example_length: int = 100,
+                 target_laplace_smoothing: float = 0.0,
                  separate_targets: bool = False,
                  target_proportions: Optional[List[float]] = None) -> None:
         '''Initialize the HashedNgramDSIR object.
@@ -83,6 +84,7 @@ class HashedNgramDSIR(DSIR):
             num_buckets: number of buckets to hash ngrams into.
             tokenizer: word_tokenize or wordpunct
             min_example_length: minimum number of tokens in an example to be considered.
+            target_laplace_smoothing: Smooth the target hashed ngram distribution. This parameter is a pseudo-count.
             separate_targets: whether to select data separately for each target and then join them
             target_proportions: weighting across multiple targets if separate_targets=True. Set to None to weight by the size of each target dataset
         '''
@@ -109,6 +111,7 @@ class HashedNgramDSIR(DSIR):
         self.raw_probs = None
         self.target_probs = None
         self.log_diff = None
+        self.target_laplace_smoothing = target_laplace_smoothing
 
     def featurizer(self, text: str) -> np.ndarray:
         return get_ngram_counts(text, tokenizer=self.tokenizer, num_buckets=self.num_buckets, n=self.ngrams)
@@ -193,6 +196,8 @@ class HashedNgramDSIR(DSIR):
                         parse_example_fn=self.target_parse_example_fn,
                         load_dataset_fn=self.target_load_dataset_fn)
                 target_proportions.append(curr_target_probs.sum())
+                # smoothing
+                curr_target_probs = curr_target_probs + self.target_laplace_smoothing
                 curr_target_probs = curr_target_probs / curr_target_probs.sum()
                 target_probs.append(curr_target_probs)
             target_proportions = np.asarray(target_proportions)
@@ -207,6 +212,9 @@ class HashedNgramDSIR(DSIR):
                     num_tokens_to_fit=None,  # fit on all tokens for target
                     parse_example_fn=self.target_parse_example_fn,
                     load_dataset_fn=self.target_load_dataset_fn)
+            # smoothing
+            self.target_probs = self.target_probs + self.target_laplace_smoothing
             self.target_probs = self.target_probs / self.target_probs.sum()
+
 
         self.log_diff = np.log(self.target_probs + 1e-8) - np.log(self.raw_probs + 1e-8)

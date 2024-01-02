@@ -292,6 +292,47 @@ def test_resample_virtual_sharding():
         shutil.rmtree('/tmp/resampled_virtual')
 
 
+def test_smoothing(dsir_obj):
+    dsir_obj.fit_importance_estimator()
+
+    target_probs_1 = dsir_obj.target_probs
+
+    smoothing_param = 1.0
+    dsir_obj_2 = HashedNgramDSIR(
+            raw_datasets=raw_datasets,
+            target_datasets=target_datasets,
+            cache_dir='/tmp/dsir_params_2',
+            raw_parse_example_fn=parse_example_fn,
+            target_parse_example_fn=parse_example_fn,
+            num_proc=2,
+            ngrams=2,
+            num_buckets=10000,
+            target_laplace_smoothing=smoothing_param)
+    dsir_obj_2.fit_importance_estimator()
+
+    target_probs_2 = dsir_obj_2.target_probs
+
+    total_counts = None
+    with open(target_datasets[0], 'r') as f:
+        for line in f:
+            ex = json.loads(line)
+            text = parse_example_fn(ex)
+            counts = get_ngram_counts(text, n=2, num_buckets=10000)
+            if total_counts is None:
+                total_counts = counts
+            else:
+                total_counts += counts
+
+    total_tokens = total_counts.sum()
+
+    assert np.allclose(total_counts / total_tokens, target_probs_1)
+
+    assert np.allclose((target_probs_1 * total_tokens + smoothing_param) / (total_tokens + smoothing_param * len(target_probs_1)), target_probs_2)
+
+    if Path('/tmp/dsir_params').exists():
+        shutil.rmtree('/tmp/dsir_params_2')
+
+
 def test_save_load(dsir_obj):
     dsir_obj.fit_importance_estimator()
 
