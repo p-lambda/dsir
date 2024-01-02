@@ -84,7 +84,7 @@ class HashedNgramDSIR(DSIR):
             num_buckets: number of buckets to hash ngrams into.
             tokenizer: word_tokenize or wordpunct
             min_example_length: minimum number of tokens in an example to be considered.
-            target_laplace_smoothing: Smooth the target hashed ngram distribution. This parameter is a pseudo-count.
+            target_laplace_smoothing: Smooth the target hashed ngram distribution. This parameter is a pseudo-count. This could be useful for small target datasets.
             separate_targets: whether to select data separately for each target and then join them
             target_proportions: weighting across multiple targets if separate_targets=True. Set to None to weight by the size of each target dataset
         '''

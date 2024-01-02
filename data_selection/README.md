@@ -42,7 +42,7 @@ The main subclass we provide is DSIR with hashed n-gram features. This choice of
 - `num_buckets`: number of buckets to hash ngrams into.
 - `tokenizer`: word_tokenize or wordpunct
 - `min_example_length`: minimum number of tokens in an example to be considered.
-- `target_laplace_smoothing`: Smooth the target hash ngram distribution with this Laplace smoothing parameter, which is a pseudo-count.
+- `target_laplace_smoothing`: Smooth the target hash ngram distribution with this Laplace smoothing parameter, which is a pseudo-count. This could be useful for small target datasets.
 - `separate_targets`: whether to select data separately for each target and then join them. For example, when including two target datasets, one natural language dataset and one code, the most heavily upweighted data when `separate_targets=False` may skew towards documents with a mix of natural language and code, such as StackExchange. When `separate_targets=True`, two separate DSIR runs will occur in parallel, selecting a mixture of documents using each target according to `target_proportions`.
 - `target_proportions`: weighting across multiple targets if separate_targets=True. The proportions are on the document level. Set to None to weight by the size in tokens of each target dataset
 
