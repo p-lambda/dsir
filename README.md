@@ -45,6 +45,8 @@ dsir.resample(out_dir='resampled', num_to_sample=10000000, cache_dir='/path/to/r
 ```
 Running this would write 10M documents in `jsonl` files inside an output directory named `resampled`. The files will first be written to `cache_dir` and moved to `out_dir` upon completion (set `cache_dir` to `None` to skip this step). For best performance, use uncompressed `jsonl` files stored on local file storage for all data paths and use as many CPU cores as possible, which allows each file to be virtually sharded across multiple cores. Custom functions for reading the data paths and extracting the text field from each example can be provided via the
 `{raw,target}_load_dataset_fn` and `{raw,target}_parse_example_fn` arguments to the constructor. The number of tokens to use for fitting the importance weight estimator can be tuned with the `num_tokens_to_fit` argument (set to `all` to fit on full dataset). Top-k retrieval instead of sampling without replacement (the default) can be done by specifying `top_k=True` to the `resample` method.
+
+(Note: for results similar to the paper, first preprocess the documents by breaking them into equal-word-length chunks, and use `tokenizer="word_tokenize"` in the `HashedNgramDSIR` constructor.)
  
 The `dsir` intermediate results (after `fit_importance_estimator` and `compute_importance_weights`) can be saved and loaded for later use, for example to resample 100M documents instead:
 ```python
